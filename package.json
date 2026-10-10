@@ -1,0 +1,39 @@
+{
+  "name": "somtoday-mcp",
+  "version": "0.1.0",
+  "description": "Read-only MCP server for the Somtoday parent portal. Auth is the product.",
+  "type": "module",
+  "bin": {
+    "somtoday-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "ouder-portal.openapi.yaml"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "ci": "tsc --noEmit && vitest run"
+  },
+  "keywords": [
+    "mcp",
+    "somtoday",
+    "ouderportaal"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "playwright": "^1.56.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.8",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

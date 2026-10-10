@@ -1,0 +1,3072 @@
+openapi: 3.0.3
+info:
+  title: Somtoday ouderportaal API
+  version: 0.2.0
+  description: |
+    Read-only reconstruction of the API used by the Somtoday parent portal
+    (`https://leerling.somtoday.nl`, app title "Somtoday Leerling & Ouder",
+    bundle version 2.24.0). This is not the partner Connect API.
+
+    Observed against productie on 2026-10-10 with a parent/guardian session
+    (`affiliation: parent/guardian`) for one linked student. Personal values
+    are not included. Schemas marked with `x-observed: true` were taken from
+    live GET responses. Operations marked `x-observed: false` exist in the
+    web client and were not called.
+
+    ## Auth
+
+    Authorization code + PKCE against `https://inloggen.somtoday.nl`.
+    Public client `somtoday-leerling-web`. No client secret.
+
+    The access token lasts about 3600 seconds (`expires_in`). The token
+    response also returns a `refresh_token`. No live refresh POST was
+    captured. The web client (angular-oauth2-oidc, `useSilentRefresh` false,
+    `responseType` code) posts `grant_type=refresh_token` to the same token
+    endpoint. That body is specified with `x-observed: false`.
+
+    API calls send:
+
+    - `Authorization: Bearer {access_token}`
+    - `Accept: application/vnd.topicus.platinum+json; charset=utf-8`
+    - `Content-Type: application/vnd.topicus.platinum+json; charset=utf-8`
+
+    ## Envelope
+
+    Most bodies are Topicus/Platinum resources:
+
+    - `$type` is a Java-style type name (`leerling.RLeerling`, `auth.RAccount`, …)
+    - `links[]` with `id`, `rel`, `type`, `href`
+    - `permissions[]` with `operations` such as `READ` and `UPDATE`
+    - `additionalObjects` holds expansions requested with repeated `additional`
+    - lists are `{ "items": [ ... ] }`
+    - some scalars are wrappers, e.g. `{ "$type": "wrappers.LongWrapper", "values": [0] }`
+    - null fields are often omitted
+    - collections may return **206** with `Content-Range: items {start}-{end}/{total}`
+
+    ## Parent feature flags
+
+    `GET /account/me?additional=restricties` returns one
+    `restricties.REloRestricties` per linked student. Those booleans are what
+    the portal uses to show or hide sections. On the observed school,
+    `magAbsentiemeldingMaken` was false and the absence form said the school
+    has no absence reasons configured. `berichtenVerzendenAan` was false.
+
+    ## Portal routes that drive these calls
+
+    `/`, `/start`, `/vandaag` (redirects to start), `/rooster`, `/studiewijzer`,
+    `/cijfers`, `/cijfers/vakgemiddelden`, `/cijfers/overzicht`,
+    `/cijfers/vakresultaten?vak&lichting&plaatsing&vaknaam`,
+    `/afwezigheid`, `/afwezigheid/melden`, `/berichten/postvak-in`,
+    `/berichten/verzonden-items`, `/berichten/nieuw`, `/berichten/edit`,
+    `/schoolinformatie`, `/schoolinformatie?pagina={id}|-1|-2`,
+    `/verzoeken`, `/ouderavond/{id}`, `/nieuwsbericht/{id}`,
+    settings dialog (Mijn gegevens, Weergave, Notificaties, Toestemmingen).
+
+    Inleveropdrachten and Studiemateriaal are dialogs on `/studiewijzer`,
+    not separate routes. Inbox vs sent mail is filtered in the client from
+    the same conversations call.
+
+servers:
+  - url: https://api.somtoday.nl/rest/v1
+    description: Productie portal API
+  - url: https://inloggen.somtoday.nl
+    description: Identity provider. Only the OAuth paths use this server.
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+  - name: account
+  - name: leerling
+  - name: rooster
+  - name: studiewijzer
+  - name: cijfers
+  - name: afwezigheid
+  - name: berichten
+  - name: nieuws
+  - name: school
+  - name: verzoeken
+  - name: toestemming
+
+paths:
+  /oauth2/token:
+    servers:
+      - url: https://inloggen.somtoday.nl
+    post:
+      tags: [auth]
+      operationId: exchangeAuthorizationCode
+      security: []
+      x-observed: true
+      summary: Exchange an authorization code or refresh an access token
+      description: |
+        `authorization_code` was observed live. `refresh_token` is the body
+        built by the web client and was not posted during sampling.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Tokens plus the API base URL for this organisation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /.well-known/openid-configuration:
+    servers:
+      - url: https://inloggen.somtoday.nl
+    get:
+      tags: [auth]
+      operationId: openIdConfiguration
+      security: []
+      x-observed: true
+      summary: OpenID discovery document
+      responses:
+        '200':
+          description: Discovery document
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /oauth2/jwks.json:
+    servers:
+      - url: https://inloggen.somtoday.nl
+    get:
+      tags: [auth]
+      operationId: jsonWebKeySet
+      security: []
+      x-observed: true
+      summary: Signing keys for id and access tokens
+      responses:
+        '200':
+          description: JWKS
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /account/me:
+    get:
+      tags: [account]
+      operationId: getCurrentAccount
+      x-observed: true
+      summary: Current parent account
+      parameters:
+        - $ref: '#/components/parameters/additional'
+        - name: dummy-param-account
+          in: query
+          description: Cache-buster set to the account UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Account. Not wrapped in `items`.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/Account'
+
+  /accountsettings:
+    get:
+      tags: [account]
+      operationId: getAccountSettings
+      x-observed: true
+      summary: Push and email notification toggles
+      responses:
+        '200':
+          description: One settings resource
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/AccountSettingsList'
+    put:
+      tags: [account]
+      operationId: putAccountSettings
+      x-observed: false
+      summary: Update notification toggles
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              $ref: '#/components/schemas/AccountSettings'
+      responses:
+        '200':
+          description: Updated settings
+
+  /accountdevices:
+    put:
+      tags: [account]
+      operationId: registerDevice
+      x-observed: false
+      summary: Register this device for push
+      responses:
+        '200':
+          description: Registered
+    delete:
+      tags: [account]
+      operationId: unregisterDevice
+      x-observed: false
+      summary: Revoke push registration on logout
+      responses:
+        '200':
+          description: Removed
+
+  /account/deimpersonate:
+    post:
+      tags: [account]
+      operationId: deimpersonate
+      x-observed: false
+      summary: Leave an impersonated session
+      responses:
+        '200':
+          description: Impersonation ended
+
+  /icalendar:
+    get:
+      tags: [account]
+      operationId: getIcsLink
+      x-observed: false
+      summary: Personal calendar feed link
+      description: Hidden when `roosterBeschikbaarIcalAan` is false.
+      responses:
+        '200':
+          description: ICS link resource
+    delete:
+      tags: [account]
+      operationId: deleteIcsLink
+      x-observed: false
+      summary: Revoke the calendar feed link
+      responses:
+        '200':
+          description: Revoked
+
+  /appinfo/leerling/supported:
+    get:
+      tags: [account]
+      operationId: supportedAppVersion
+      x-observed: false
+      summary: Minimum supported app version, plain text
+      parameters:
+        - name: Accept
+          in: header
+          schema:
+            type: string
+            enum: [text/plain]
+      responses:
+        '200':
+          description: Version string
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /leerlingen/{leerlingId}:
+    get:
+      tags: [leerling]
+      operationId: getLeerling
+      x-observed: true
+      summary: Linked student
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - $ref: '#/components/parameters/additional'
+      responses:
+        '200':
+          description: Student. `additional=stamgroep` was requested at startup.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/Leerling'
+
+  /leerlingen/verzorger/schoolgegevens:
+    get:
+      tags: [leerling, school]
+      operationId: getSchoolgegevens
+      x-observed: true
+      summary: School contact details and the student's placement summary
+      description: Loaded by Schoolinformatie pagina=-2 and by the absence form.
+      responses:
+        '200':
+          description: Array of one school-and-placement summary per linked student. Not wrapped in `items`.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Schoolgegevens'
+
+  /leerlingen/contactgegevens:
+    put:
+      tags: [leerling]
+      operationId: updateLeerlingContact
+      x-observed: false
+      summary: Update the student's mobile number and email
+      description: Allowed only when the matching restrictie flags are true.
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              $ref: '#/components/schemas/ContactUpdate'
+      responses:
+        '200':
+          description: Updated
+
+  /verzorgers/contactgegevens:
+    put:
+      tags: [account]
+      operationId: updateVerzorgerContact
+      x-observed: false
+      summary: Update the parent's mobile number and email
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              $ref: '#/components/schemas/ContactUpdate'
+      responses:
+        '200':
+          description: Updated
+
+  /mededelingen:
+    get:
+      tags: [nieuws]
+      operationId: listMededelingen
+      x-observed: true
+      summary: Platform announcements
+      responses:
+        '200':
+          description: Announcements. Empty on the observed day.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /communicatie/nieuwsberichten/ontvangen:
+    get:
+      tags: [nieuws]
+      operationId: listNieuwsberichten
+      x-observed: true
+      summary: News items for the parent
+      parameters:
+        - $ref: '#/components/parameters/amount'
+        - $ref: '#/components/parameters/start'
+      responses:
+        '200':
+          description: News page
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /communicatie/nieuwsberichten/ontvangen/aantalongelezen:
+    get:
+      tags: [nieuws]
+      operationId: unreadNieuwsCount
+      x-observed: true
+      summary: Unread news count
+      responses:
+        '200':
+          description: Count wrapper or small object
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+
+  /communicatie/nieuwsberichten/ontvangen/{id}:
+    get:
+      tags: [nieuws]
+      operationId: getNieuwsbericht
+      x-observed: false
+      summary: One news item
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: News item
+
+  /communicatie/nieuwsberichten/ontvangen/{id}/content:
+    get:
+      tags: [nieuws]
+      operationId: getNieuwsberichtContent
+      x-observed: false
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: HTML or text content
+
+  /afspraakitems/{leerlingId}/jaar/{jaar}/week/{week}:
+    get:
+      tags: [rooster]
+      operationId: getWeekRooster
+      x-observed: true
+      summary: Lessons for one ISO week
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - $ref: '#/components/parameters/jaar'
+        - $ref: '#/components/parameters/week'
+      responses:
+        '200':
+          description: Appointments for that week, plus a root `statusNotifications` array.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/AfspraakWeek'
+
+  /afspraakitems/herhalingsinfo/{afspraakId}/{leerlingId}:
+    get:
+      tags: [rooster]
+      operationId: getAfspraakHerhaling
+      x-observed: false
+      parameters:
+        - name: afspraakId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/leerlingId'
+      responses:
+        '200':
+          description: Recurrence info
+
+  /afspraakitems/uitvoeren:
+    post:
+      tags: [rooster]
+      operationId: uitvoerenAfspraak
+      x-observed: false
+      summary: Mark a planned item done
+      responses:
+        '200':
+          description: Updated
+
+  /vakanties/verzorger:
+    get:
+      tags: [rooster, school]
+      operationId: listVakantiesVerzorger
+      x-observed: true
+      summary: Holidays and days off for the parent
+      description: Also used by Schoolinformatie pagina=-1.
+      responses:
+        '200':
+          description: Holiday list
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /maatregeltoekenningen/actief/{leerlingId}:
+    get:
+      tags: [afwezigheid]
+      operationId: listActieveMaatregelen
+      x-observed: true
+      summary: Active measures for the student
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+      responses:
+        '200':
+          description: Measures
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /studiewijzeritemafspraaktoekenningen:
+    get:
+      tags: [studiewijzer]
+      operationId: listAfspraakToekenningen
+      x-observed: true
+      summary: Homework attached to a lesson in a week
+      parameters:
+        - $ref: '#/components/parameters/leerlingFilter'
+        - $ref: '#/components/parameters/jaarWeek'
+        - $ref: '#/components/parameters/studiewijzerAdditionals'
+      responses:
+        '206':
+          description: "Partial list. Observed Content-Range items 0-15/16."
+          headers:
+            Content-Range:
+              schema:
+                type: string
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/AfspraakToekenningList'
+
+  /studiewijzeritemdagtoekenningen:
+    get:
+      tags: [studiewijzer]
+      operationId: listDagToekenningen
+      x-observed: true
+      summary: Day tasks, or all hand-in tasks
+      description: |
+        Week view sends `jaarWeek`. The Inleveropdrachten dialog instead sends
+        `studiewijzerItem.heeftInleverperiode=true` and no week.
+      parameters:
+        - $ref: '#/components/parameters/leerlingFilter'
+        - $ref: '#/components/parameters/jaarWeekOptional'
+        - name: studiewijzerItem.heeftInleverperiode
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/studiewijzerAdditionals'
+      responses:
+        '206':
+          description: Partial list of day tasks (`studiewijzer.RSWIDagToekenning`).
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/DagToekenningList'
+
+  /studiewijzeritemweektoekenningen:
+    get:
+      tags: [studiewijzer]
+      operationId: listWeekToekenningen
+      x-observed: true
+      summary: Week tasks
+      parameters:
+        - $ref: '#/components/parameters/leerlingFilter'
+        - name: weeknummer
+          in: query
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/studiewijzerAdditionals'
+      responses:
+        '206':
+          description: Partial list of week tasks (`studiewijzer.RSWIWeekToekenning`).
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/WeekToekenningList'
+
+  /studiewijzeritemdagtoekenningen/{toekenningId}/inleveren:
+    post:
+      tags: [studiewijzer]
+      operationId: leverIn
+      x-observed: false
+      summary: Hand in files or URLs for a day task
+      parameters:
+        - name: toekenningId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              type: object
+              properties:
+                bestandIds:
+                  type: array
+                  items:
+                    type: string
+                urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Hand-in accepted
+
+  /studiewijzeritemdagtoekenningen/inleverdetails/{toekenningId}:
+    get:
+      tags: [studiewijzer]
+      operationId: getInleverDetails
+      x-observed: false
+      parameters:
+        - name: toekenningId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Hand-in status
+
+  /studiewijzeritemdagtoekenningen/{toekenningId}/verstuurReactieLeerling:
+    post:
+      tags: [studiewijzer]
+      operationId: verstuurReactie
+      x-observed: false
+      parameters:
+        - name: toekenningId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comment stored
+
+  /vakken/studiemateriaal/{leerlingId}:
+    get:
+      tags: [studiewijzer]
+      operationId: listStudiemateriaalVakken
+      x-observed: true
+      summary: Subjects that have study material
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+      responses:
+        '200':
+          description: Subject list
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/VakList'
+
+  /studiemateriaal/{leerlingId}/vak/{vakUuid}:
+    get:
+      tags: [studiewijzer]
+      operationId: getStudiemateriaal
+      x-observed: true
+      summary: Lesson material for one subject
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - $ref: '#/components/parameters/vakUuid'
+      responses:
+        '200':
+          description: Study guide plus lesson-material assignments
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/StudieMateriaal'
+
+  /vakkeuzes:
+    get:
+      tags: [cijfers]
+      operationId: listVakkeuzes
+      x-observed: true
+      summary: Subject choices active on a date
+      parameters:
+        - name: actiefOpPeildatum
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: leerling
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '206':
+          description: Partial list of subject choices
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /plaatsingen:
+    get:
+      tags: [cijfers, leerling]
+      operationId: listPlaatsingen
+      x-observed: true
+      summary: Placements for the student
+      parameters:
+        - name: leerling
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '206':
+          description: Placements. Observed Content-Range items 0-0/1.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/PlaatsingList'
+
+  /vakkeuzes/plaatsing/{plaatsingUuid}/vakgemiddelden:
+    get:
+      tags: [cijfers]
+      operationId: listVakgemiddelden
+      x-observed: true
+      summary: Report averages per subject for a placement
+      parameters:
+        - $ref: '#/components/parameters/plaatsingUuid'
+      responses:
+        '200':
+          description: Averages. Root `$type` is `resultaten.RLeerlingVakGemiddelden`. Not an `items` list.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/Vakgemiddelden'
+
+  /resultaatpublicatiemomenten/volgende/leerling/{leerlingId}:
+    get:
+      tags: [cijfers]
+      operationId: volgendePublicatiemoment
+      x-observed: true
+      summary: Next grade publication moment
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+      responses:
+        '200':
+          description: Publication moment
+
+  /geldendvoortgangsdossierresultaten/leerling/{leerlingId}:
+    get:
+      tags: [cijfers]
+      operationId: listVoortgangsresultaten
+      x-observed: true
+      summary: Latest progress-dossier results
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - $ref: '#/components/parameters/resultaatTypesRecent'
+        - $ref: '#/components/parameters/resultaatAdditionalsRecent'
+        - $ref: '#/components/parameters/resultaatSort'
+      responses:
+        '206':
+          description: Recent results, newest first. Sampled items were all `type=Toetskolom`.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/GeldendResultaatList'
+
+  /geldendexamendossierresultaten/leerling/{leerlingId}:
+    get:
+      tags: [cijfers]
+      operationId: listExamenresultaten
+      x-observed: true
+      summary: Latest exam-dossier results
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - $ref: '#/components/parameters/resultaatTypesRecent'
+        - $ref: '#/components/parameters/resultaatAdditionalsRecent'
+        - $ref: '#/components/parameters/resultaatSort'
+      responses:
+        '206':
+          description: Recent exam results
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /geldendvoortgangsdossierresultaten/vakresultaten/{leerlingId}/vak/{vakUuid}/lichting/{lichtingUuid}:
+    get:
+      tags: [cijfers]
+      operationId: voortgangVakresultaten
+      x-observed: true
+      summary: All progress results for one subject and cohort
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - $ref: '#/components/parameters/vakUuid'
+        - $ref: '#/components/parameters/lichtingUuid'
+        - $ref: '#/components/parameters/resultaatTypesVak'
+        - $ref: '#/components/parameters/resultaatAdditionalsVak'
+        - $ref: '#/components/parameters/resultaatSort'
+      responses:
+        '200':
+          description: Subject results. Same result object as the latest-results list, with period and level names in `additionalObjects`.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/GeldendResultaatList'
+
+  /geldendexamendossierresultaten/vakresultaten/{leerlingId}/vak/{vakUuid}/lichting/{lichtingUuid}:
+    get:
+      tags: [cijfers]
+      operationId: examenVakresultaten
+      x-observed: true
+      summary: All exam results for one subject and cohort
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - $ref: '#/components/parameters/vakUuid'
+        - $ref: '#/components/parameters/lichtingUuid'
+        - $ref: '#/components/parameters/resultaatTypesVakExamen'
+        - $ref: '#/components/parameters/resultaatAdditionalsVakExamen'
+        - $ref: '#/components/parameters/resultaatSort'
+      responses:
+        '200':
+          description: Exam subject results
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /geldendexamendossierresultaten/leerling/context/{leerlingId}:
+    get:
+      tags: [cijfers]
+      operationId: examenContext
+      x-observed: true
+      summary: Exam-dossier context for the grade overview
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+      responses:
+        '200':
+          description: Context
+
+  /geldendvoortgangsdossierresultaten/leerling/cijferoverzicht/{leerlingId}:
+    get:
+      tags: [cijfers]
+      operationId: cijferoverzicht
+      x-observed: true
+      summary: Grade grid for a placement
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - name: plaatsing
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Overview grid. Root `$type` is `resultaten.RLeerlingVoortgangResultaten`.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/Cijferoverzicht'
+
+  /leerlingen/{leerlingId}/registratieOverzicht:
+    get:
+      tags: [afwezigheid]
+      operationId: registratieOverzicht
+      x-observed: true
+      summary: Absence overview
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+        - name: periode
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [SCHOOLJAAR]
+      responses:
+        '200':
+          description: Absence overview for `periode=SCHOOLJAAR`. Several arrays were empty, so their element shape is unknown.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/RegistratieOverzicht'
+
+  /leerlingen/{leerlingId}/absentieMeldenInstructie:
+    get:
+      tags: [afwezigheid]
+      operationId: absentieMeldenInstructie
+      x-observed: true
+      summary: Instructions shown on the absence form
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+      responses:
+        '200':
+          description: Instruction text or resource
+
+  /absentieredenen:
+    get:
+      tags: [afwezigheid]
+      operationId: listAbsentieredenen
+      x-observed: true
+      summary: Absence reasons the school allows parents to use
+      parameters:
+        - name: vestiging
+          in: query
+          required: true
+          description: Numeric vestiging id
+          schema:
+            type: string
+        - name: leerling
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reasons. Empty when the school has not configured any.
+
+  /absentiemeldingen:
+    post:
+      tags: [afwezigheid]
+      operationId: meldAbsentie
+      x-observed: false
+      summary: Report an absence
+      description: Not available when `magAbsentiemeldingMaken` is false.
+      responses:
+        '200':
+          description: Report stored
+
+  /schoolinformatie/gepubliceerd/v2/paginas:
+    get:
+      tags: [school]
+      operationId: listSchoolpaginas
+      x-observed: true
+      summary: Published school-information pages
+      responses:
+        '200':
+          description: "Page list keyed by paginas, not items. UI ids -1 and -2 are client-only."
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/SchoolPaginaList'
+
+  /schoolinformatie/gepubliceerd/v2/paginas/{paginaId}:
+    get:
+      tags: [school]
+      operationId: getSchoolpagina
+      x-observed: true
+      summary: One published school-information page
+      parameters:
+        - name: paginaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page content. Nested `onderwerpen` and `documentmappen` were empty.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/SchoolPagina'
+
+  /boodschappen/conversaties/ongelezencount:
+    get:
+      tags: [berichten]
+      operationId: unreadBerichtenCount
+      x-observed: true
+      summary: Unread conversation count
+      responses:
+        '200':
+          description: Long wrapper
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/LongWrapper'
+
+  /boodschappen/conversaties:
+    get:
+      tags: [berichten]
+      operationId: listConversaties
+      x-observed: true
+      summary: Inbox and sent conversations
+      description: |
+        The same call feeds Postvak IN and Verzonden items. The client
+        splits them using `verzondenDoorGebruiker`. `alle=false` is the
+        recent window (UI says 60 days). `alle=true` loads older ones.
+      parameters:
+        - name: alle
+          in: query
+          schema:
+            type: boolean
+        - name: additional
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - verzondenDoorGebruiker
+                - verzenderCorrespondent
+                - ontvangerCorrespondenten
+                - aantalExtraOntvangers
+                - actiefVoorGebruiker
+      responses:
+        '200':
+          description: Conversations
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /boodschappen/conversatie/{conversatieId}/markeerGelezen:
+    post:
+      tags: [berichten]
+      operationId: markeerConversatieGelezen
+      x-observed: false
+      parameters:
+        - name: conversatieId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Marked read
+
+  /boodschappen/conversatie/{conversatieId}/verwijder:
+    post:
+      tags: [berichten]
+      operationId: verwijderConversatie
+      x-observed: false
+      parameters:
+        - name: conversatieId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /boodschappen/setGelezen/{boodschapId}:
+    put:
+      tags: [berichten]
+      operationId: setBoodschapGelezen
+      x-observed: false
+      parameters:
+        - name: boodschapId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Marked read
+
+  /verstuurdbericht/nieuw:
+    post:
+      tags: [berichten]
+      operationId: nieuwBericht
+      x-observed: false
+      summary: Send a new message
+      description: Hidden when `berichtenVerzendenAan` is false.
+      responses:
+        '200':
+          description: Sent
+
+  /verstuurdbericht/reactie:
+    post:
+      tags: [berichten]
+      operationId: reageerBericht
+      x-observed: false
+      summary: Reply to a message
+      responses:
+        '200':
+          description: Sent
+
+  /begeleiden/ondertekenverzoeken:
+    get:
+      tags: [verzoeken]
+      operationId: listOndertekenverzoeken
+      x-observed: true
+      summary: Documents waiting for a signature
+      description: The All / Action required / Done filters are client-side.
+      responses:
+        '200':
+          description: |
+            Bare array. The observed response was `[]`. Item fields below are
+            from the client mapper (`x-observed: false` on the item schema).
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ondertekenverzoek'
+
+  /begeleiden/ondertekenverzoeken/{verzoekId}/document:
+    get:
+      tags: [verzoeken]
+      operationId: getOndertekenDocument
+      x-observed: false
+      parameters:
+        - name: verzoekId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /begeleiden/ondertekenverzoeken/{verzoekId}/ondertekenlink:
+    post:
+      tags: [verzoeken]
+      operationId: getOndertekenlink
+      x-observed: false
+      summary: URL of the external signing flow
+      parameters:
+        - name: verzoekId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object with `ondertekenUrl`
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                type: object
+                properties:
+                  ondertekenUrl:
+                    type: string
+                    format: uri
+
+  /toestemming:
+    get:
+      tags: [toestemming]
+      operationId: listToestemmingen
+      x-observed: true
+      summary: Image-use and portal consents per linked student
+      responses:
+        '200':
+          description: Consents grouped by student
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ToestemmingList'
+
+  /toestemming/{leerlingUuid}/{toestemmingUuid}:
+    put:
+      tags: [toestemming]
+      operationId: updateToestemming
+      x-observed: false
+      summary: Set one consent
+      parameters:
+        - name: leerlingUuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: toestemmingUuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              type: object
+              description: Consent value body. Not sampled.
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+
+  /leerlingen/portaaltoestemmingen/{leerlingId}:
+    put:
+      tags: [toestemming]
+      operationId: updatePortaalToestemming
+      x-observed: false
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
+      responses:
+        '200':
+          description: Updated
+
+  /ouderavond/{ouderavondId}:
+    get:
+      tags: [school]
+      operationId: getOuderavond
+      x-observed: false
+      summary: Parent-evening slots
+      parameters:
+        - name: ouderavondId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Evening payload. Not requested live; fields are from the client mapper.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/Ouderavond'
+    post:
+      tags: [school]
+      operationId: kiesOuderavond
+      x-observed: false
+      summary: Save timeslot choices
+      parameters:
+        - name: ouderavondId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Choices stored
+        '400':
+          description: Invalid choice
+
+  /zelfplannen/afspraken:
+    get:
+      tags: [rooster]
+      operationId: listZelfplannenAfspraken
+      x-observed: false
+      summary: Self-planned appointments in a datetime range
+      description: Present in the web client. No parent-menu entry was shown, so this was not called.
+      parameters:
+        - name: vanafDatumtijd
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: totEnMetDatumtijd
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Appointment array from the client mapper.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ZelfplannenAfspraak'
+    post:
+      tags: [rooster]
+      operationId: createZelfplannenAfspraak
+      x-observed: false
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              $ref: '#/components/schemas/ZelfplannenAfspraak'
+      responses:
+        '200':
+          description: Created
+
+  /zelfplannen/afspraken/{uuid}:
+    put:
+      tags: [rooster]
+      operationId: updateZelfplannenAfspraak
+      x-observed: false
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              $ref: '#/components/schemas/ZelfplannenAfspraak'
+      responses:
+        '200':
+          description: Updated. The client ignores the body.
+    delete:
+      tags: [rooster]
+      operationId: deleteZelfplannenAfspraak
+      x-observed: false
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted. The client ignores the body.
+
+  /zelfplannen/taken:
+    get:
+      tags: [studiewijzer]
+      operationId: listZelfplannenTaken
+      x-observed: false
+      summary: Self-planned tasks in a date range
+      description: Present in the web client. No parent-menu entry was shown, so this was not called.
+      parameters:
+        - name: vanafDatum
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: totEnMetDatum
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Task array from the client mapper.
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ZelfplannenTaak'
+    post:
+      tags: [studiewijzer]
+      operationId: createZelfplannenTaak
+      x-observed: false
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              $ref: '#/components/schemas/ZelfplannenTaak'
+      responses:
+        '200':
+          description: Created
+
+  /zelfplannen/taken/{uuid}:
+    put:
+      tags: [studiewijzer]
+      operationId: updateZelfplannenTaak
+      x-observed: false
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              $ref: '#/components/schemas/ZelfplannenTaak'
+      responses:
+        '200':
+          description: Updated. The client ignores the body.
+    delete:
+      tags: [studiewijzer]
+      operationId: deleteZelfplannenTaak
+      x-observed: false
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted. The client ignores the body.
+
+  /zelfplannen/taken/{uuid}/gemaakt:
+    put:
+      tags: [studiewijzer]
+      operationId: setZelfplannenTaakGemaakt
+      x-observed: false
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/vnd.topicus.platinum+json:
+            schema:
+              type: object
+              properties:
+                gemaakt:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated. The client ignores the body.
+
+  /gcs/download/{bestandId}:
+    get:
+      tags: [studiewijzer]
+      operationId: getDownloadUrl
+      x-observed: true
+      summary: Signed download URL for an attachment
+      parameters:
+        - name: bestandId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: URL as text
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /gcs/upload:
+    post:
+      tags: [studiewijzer]
+      operationId: getUploadUrl
+      x-observed: false
+      summary: Signed upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filename:
+                  type: string
+                fileSize:
+                  type: integer
+                mimeType:
+                  type: string
+                extension:
+                  type: string
+      responses:
+        '200':
+          description: Upload target
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token from `POST https://inloggen.somtoday.nl/oauth2/token`.
+        Lifetime is about 3600 seconds.
+
+  parameters:
+    additional:
+      name: additional
+      in: query
+      description: Repeat to expand `additionalObjects`. Known values include `adres`, `restricties`, `impersonated`, `toonToestemmingReminder`, `stamgroep`.
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+    leerlingId:
+      name: leerlingId
+      in: path
+      required: true
+      description: Numeric student id, not the UUID
+      schema:
+        type: string
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    jaar:
+      name: jaar
+      in: path
+      required: true
+      schema:
+        type: integer
+        example: 2026
+    week:
+      name: week
+      in: path
+      required: true
+      description: ISO week number
+      schema:
+        type: integer
+    jaarWeek:
+      name: jaarWeek
+      in: query
+      required: true
+      description: "`{year}~{isoWeek}`, for example `2026~41`"
+      schema:
+        type: string
+    jaarWeekOptional:
+      name: jaarWeek
+      in: query
+      schema:
+        type: string
+    leerlingFilter:
+      name: geenDifferentiatieOfGedifferentieerdVoorLeerling
+      in: query
+      required: true
+      description: Numeric student id. Returns items with no differentiation plus items differentiated for this student.
+      schema:
+        type: string
+    studiewijzerAdditionals:
+      name: additional
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - leerlingen
+            - swigemaaktVinkjes
+            - lesgroep
+            - leerlingenMetInleveringStatus
+            - leerlingProjectgroep
+            - studiewijzerId
+    amount:
+      name: amount
+      in: query
+      schema:
+        type: integer
+        example: 25
+    start:
+      name: start
+      in: query
+      schema:
+        type: integer
+        example: 0
+    vakUuid:
+      name: vakUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    lichtingUuid:
+      name: lichtingUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    plaatsingUuid:
+      name: plaatsingUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    resultaatSort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        example: desc-geldendResultaatCijferInvoer
+    resultaatTypesRecent:
+      name: type
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum: [Toetskolom, DeeltoetsKolom, Werkstukcijferkolom, Advieskolom]
+    resultaatAdditionalsRecent:
+      name: additional
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum: [vaknaam, resultaatkolom, naamalternatiefniveau, vakuuid, lichtinguuid]
+    resultaatTypesVak:
+      name: type
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - Toetskolom
+            - SamengesteldeToetsKolom
+            - Werkstukcijferkolom
+            - Advieskolom
+            - PeriodeGemiddeldeKolom
+            - RapportGemiddeldeKolom
+            - RapportCijferKolom
+            - RapportToetskolom
+            - SEGemiddeldeKolom
+            - ToetssoortGemiddeldeKolom
+    resultaatAdditionalsVak:
+      name: additional
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - vaknaam
+            - resultaatkolom
+            - heeftalternatiefniveau
+            - naamalternatiefniveau
+            - naamstandaardniveau
+            - leerjaar
+            - periodeAfkorting
+    resultaatTypesVakExamen:
+      name: type
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - Toetskolom
+            - SamengesteldeToetsKolom
+            - Werkstukcijferkolom
+            - Advieskolom
+            - PeriodeGemiddeldeKolom
+            - RapportGemiddeldeKolom
+            - RapportCijferKolom
+            - RapportToetskolom
+            - SEGemiddeldeKolom
+            - ToetssoortGemiddeldeKolom
+    resultaatAdditionalsVakExamen:
+      name: additional
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - vaknaam
+            - resultaatkolom
+            - heeftalternatiefniveau
+            - naamalternatiefniveau
+            - naamstandaardniveau
+            - leerjaar
+
+  schemas:
+    TokenRequest:
+      oneOf:
+        - $ref: '#/components/schemas/AuthorizationCodeTokenRequest'
+        - $ref: '#/components/schemas/RefreshTokenRequest'
+
+    AuthorizationCodeTokenRequest:
+      type: object
+      x-observed: true
+      required: [grant_type, code, redirect_uri, code_verifier, client_id]
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code]
+        code:
+          type: string
+        redirect_uri:
+          type: string
+          example: https://leerling.somtoday.nl/oauth/callback
+        code_verifier:
+          type: string
+        client_id:
+          type: string
+          example: somtoday-leerling-web
+        claims:
+          type: string
+          description: JSON claim request. Observed id_token claims are given_name, leerlingen, orgname, affiliation (student and parent/guardian).
+
+    RefreshTokenRequest:
+      type: object
+      x-observed: false
+      description: Body built by the web client. No live refresh POST was captured.
+      required: [grant_type, refresh_token, client_id]
+      properties:
+        grant_type:
+          type: string
+          enum: [refresh_token]
+        refresh_token:
+          type: string
+        client_id:
+          type: string
+          example: somtoday-leerling-web
+        scope:
+          type: string
+          example: openid
+        claims:
+          type: string
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        id_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 3599
+        scope:
+          type: string
+          example: openid
+        somtoday_api_url:
+          type: string
+          example: https://api.somtoday.nl
+        somtoday_oop_url:
+          type: string
+          example: https://oop.somtoday.nl
+        somtoday_organisatie_afkorting:
+          type: string
+        somtoday_tenant:
+          type: string
+          description: Copied by the client when the token JSON includes it. Not present on the sampled token response.
+
+    Link:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        rel:
+          type: string
+          example: self
+        type:
+          type: string
+        href:
+          type: string
+          format: uri
+
+    Permission:
+      type: object
+      properties:
+        full:
+          type: string
+        type:
+          type: string
+        operations:
+          type: array
+          items:
+            type: string
+            enum: [READ, UPDATE, DELETE]
+        instances:
+          type: array
+          items:
+            type: string
+
+    Resource:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+        additionalObjects:
+          type: object
+          additionalProperties: true
+
+    ItemList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+
+    LongWrapper:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: wrappers.LongWrapper
+        values:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    Adres:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: adres.RAdres
+        straat:
+          type: string
+        huisnummer:
+          type: string
+        plaatsnaam:
+          type: string
+        postcode:
+          type: string
+        land:
+          type: string
+        isBuitenlandsAdres:
+          type: boolean
+
+    EloRestricties:
+      type: object
+      x-observed: true
+      description: Feature flags for one student on this parent account
+      properties:
+        $type:
+          type: string
+          example: restricties.REloRestricties
+        vestigingsId:
+          type: integer
+          format: int64
+        leerlingId:
+          type: integer
+          format: int64
+        mobieleAppAan:
+          type: boolean
+        studiewijzerAan:
+          type: boolean
+        berichtenVerzendenAan:
+          type: boolean
+        leermiddelenAan:
+          type: boolean
+        adviezenTokenAan:
+          type: boolean
+        opmerkingRapportCijferTonenAan:
+          type: boolean
+        periodeGemiddeldeTonenResultaatAan:
+          type: boolean
+        rapportGemiddeldeTonenResultaatAan:
+          type: boolean
+        rapportCijferTonenResultaatAan:
+          type: boolean
+        toetssoortgemiddeldenAan:
+          type: boolean
+        seResultaatAan:
+          type: boolean
+        stamgroepLeerjaarAan:
+          type: boolean
+        emailWijzigenAan:
+          type: boolean
+        mobielWijzigenAan:
+          type: boolean
+        wachtwoordWijzigenAan:
+          type: boolean
+        absentiesBekijkenAan:
+          type: boolean
+        absentieConstateringBekijkenAan:
+          type: boolean
+        absentieMaatregelBekijkenAan:
+          type: boolean
+        absentieMeldingBekijkenAan:
+          type: boolean
+        berichtenBekijkenAan:
+          type: boolean
+        cijfersBekijkenAan:
+          type: boolean
+        huiswerkBekijkenAan:
+          type: boolean
+        huiswerkWelNietInOrdeTonenAan:
+          type: boolean
+        profielBekijkenAan:
+          type: boolean
+        roosterBekijkenAan:
+          type: boolean
+        roosterBeschikbaarIcalAan:
+          type: boolean
+        lesurenVerbergenSettingAan:
+          type: boolean
+        zelfplannenAan:
+          type: boolean
+        magAbsentiemeldingMaken:
+          type: boolean
+        schoolcommunicatieNieuwsberichtenOntvangenAan:
+          type: boolean
+        schoolcommunicatieSchoolinformatieAan:
+          type: boolean
+        toonLeerlingVolwassenIndicatie:
+          type: boolean
+        digitaalOndertekenenAan:
+          type: boolean
+
+    Verzorger:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: verzorger.RVerzorger
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+        voorletters:
+          type: string
+        achternaam:
+          type: string
+        mobielNummer:
+          type: string
+        email:
+          type: string
+        geslacht:
+          type: string
+        adres:
+          $ref: '#/components/schemas/Adres'
+
+    Account:
+      type: object
+      x-observed: true
+      allOf:
+        - $ref: '#/components/schemas/Resource'
+        - type: object
+          properties:
+            gebruikersnaam:
+              type: string
+            persoon:
+              $ref: '#/components/schemas/Verzorger'
+            additionalObjects:
+              type: object
+              properties:
+                adres:
+                  $ref: '#/components/schemas/Adres'
+                restricties:
+                  type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/EloRestricties'
+
+    AccountSettings:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: accountsettings.RAccountSettings
+        leerlingAppAbsentieMeldingen:
+          type: boolean
+        leerlingAppBerichtenMeldingen:
+          type: boolean
+        leerlingAppNieuwsberichtenMeldingen:
+          type: boolean
+        leerlingAppBelangrijkeNieuwsberichtenMeldingen:
+          type: boolean
+        leerlingAppNieuwsberichtenEmailMeldingen:
+          type: boolean
+        leerlingAppBelangrijkeNieuwsberichtenEmailMeldingen:
+          type: boolean
+        leerlingAppVerzoekenMeldingen:
+          type: boolean
+
+    AccountSettingsList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountSettings'
+
+    Leerling:
+      type: object
+      x-observed: true
+      description: Fields seen on the consent payload (`leerling.RLeerling`). The dedicated leerling call also accepts `additional=stamgroep`.
+      properties:
+        $type:
+          type: string
+        UUID:
+          type: string
+          format: uuid
+        leerlingnummer:
+          type: integer
+        roepnaam:
+          type: string
+        achternaam:
+          type: string
+        email:
+          type: string
+        mobielNummer:
+          type: string
+        geboortedatum:
+          type: string
+          format: date
+        geslacht:
+          type: string
+
+    ContactUpdate:
+      type: object
+      properties:
+        mobielNummer:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+
+    Vak:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: onderwijsinrichting.RVak
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+        afkorting:
+          type: string
+        naam:
+          type: string
+        UUID:
+          type: string
+          format: uuid
+
+    VakList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vak'
+
+    Schooljaar:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: onderwijsinrichting.RSchooljaar
+        naam:
+          type: string
+        vanafDatum:
+          type: string
+          format: date
+        totDatum:
+          type: string
+          format: date
+        isHuidig:
+          type: boolean
+
+    Vestiging:
+      type: object
+      x-observed: true
+      properties:
+        naam:
+          type: string
+        afkorting:
+          type: string
+        UUID:
+          type: string
+          format: uuid
+        uuid:
+          type: string
+          format: uuid
+
+    Lesgroep:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: lesgroep.RLesgroep
+        UUID:
+          type: string
+          format: uuid
+        naam:
+          type: string
+        omschrijving:
+          type: string
+        heeftStamgroep:
+          type: boolean
+        examendossierOndersteund:
+          type: boolean
+        schooljaar:
+          $ref: '#/components/schemas/Schooljaar'
+        vak:
+          $ref: '#/components/schemas/Vak'
+        vestiging:
+          $ref: '#/components/schemas/Vestiging'
+
+    StudiewijzerItem:
+      type: object
+      x-observed: true
+      properties:
+        onderwerp:
+          type: string
+        huiswerkType:
+          type: string
+          enum: [GROTE_TOETS, HUISWERK, LESSTOF, TOETS]
+          description: Codes seen across lesson, day, and week assignments.
+        tijdsindicatie:
+          type: string
+        omschrijving:
+          type: string
+          description: HTML
+        leerdoelen:
+          type: string
+          description: HTML
+        inleverperiodes:
+          type: boolean
+        lesmateriaal:
+          type: boolean
+        projectgroepen:
+          type: boolean
+        bijlagen:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudiewijzerBijlage'
+        externeMaterialen:
+          type: array
+          description: Empty on every sampled item. The client reads `uri`, `omschrijving`, and `sortering`.
+          items:
+            $ref: '#/components/schemas/ExternMateriaal'
+        inlevermomenten:
+          type: array
+          items:
+            $ref: '#/components/schemas/Inlevermoment'
+        tonen:
+          type: boolean
+        notitieZichtbaarVoorLeerling:
+          type: boolean
+
+    AfspraakToekenning:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: studiewijzer.RSWIAfspraakToekenning
+        sortering:
+          type: integer
+        datumTijd:
+          type: string
+          format: date-time
+        aangemaaktOpDatumTijd:
+          type: string
+          format: date-time
+        studiewijzerItem:
+          $ref: '#/components/schemas/StudiewijzerItem'
+        lesgroep:
+          $ref: '#/components/schemas/Lesgroep'
+        additionalObjects:
+          type: object
+          properties:
+            studiewijzerId:
+              type: integer
+              format: int64
+            leerlingProjectgroep:
+              nullable: true
+            swigemaaktVinkjes:
+              nullable: true
+              description: Null on every sampled item. The done-tick element shape was not observed.
+
+    AfspraakToekenningList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AfspraakToekenning'
+
+    StudieMateriaal:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: studiewijzer.RStudieMateriaal
+        studiewijzer:
+          type: object
+          properties:
+            UUID:
+              type: string
+              format: uuid
+            naam:
+              type: string
+            magBewerken:
+              type: boolean
+            lesgroep:
+              $ref: '#/components/schemas/Lesgroep'
+        lesstof:
+          type: array
+          description: Mix of lesson assignments and week assignments (`RSWIAfspraakToekenning`, `RSWIWeekToekenning`). Week items use `weeknummerVanaf` and `weeknummerTm`.
+          items:
+            type: object
+            additionalProperties: true
+
+    Toestemming:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: leerling.RToestemming
+        UUID:
+          type: string
+          format: uuid
+        naam:
+          type: string
+        toelichting:
+          type: string
+        waarde:
+          type: boolean
+        bewerkbaar:
+          type: boolean
+        positie:
+          type: integer
+
+    LeerlingToestemmingen:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: leerling.RLeerlingToestemmingen
+        leerling:
+          $ref: '#/components/schemas/Leerling'
+        toestemmingen:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toestemming'
+        portaalToestemmingen:
+          type: array
+          items:
+            type: object
+
+    ToestemmingList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeerlingToestemmingen'
+
+    AfspraakVak:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: participatie.live.RAfspraakVak
+        id:
+          type: integer
+          format: int64
+        naam:
+          type: string
+        afkorting:
+          type: string
+        UUID:
+          type: string
+          format: uuid
+
+    AfspraakItem:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: participatie.live.RAfspraakItem
+        uniqueIdentifier:
+          type: string
+        afspraakItemType:
+          type: string
+          enum: [ROOSTER]
+        locatie:
+          type: string
+        beginDatumTijd:
+          type: string
+          format: date-time
+        eindDatumTijd:
+          type: string
+          format: date-time
+        beginLesuur:
+          type: integer
+        eindLesuur:
+          type: integer
+        titel:
+          type: string
+        omschrijving:
+          type: string
+        onlineDeelname:
+          type: boolean
+        vak:
+          $ref: '#/components/schemas/AfspraakVak'
+        bijlagen:
+          type: array
+          items:
+            type: object
+        lesgroepen:
+          type: array
+          items:
+            type: object
+        docentNamen:
+          type: array
+          items:
+            type: string
+        wijzigingOmschrijving:
+          type: string
+        statusNotifications:
+          type: array
+          items:
+            type: object
+            properties:
+              $type:
+                type: string
+                example: participatie.live.RStatusNotification
+              status:
+                type: string
+                description: Observed codes include 2002, 4001, and 4007.
+              message:
+                type: string
+
+    AfspraakWeek:
+      type: object
+      x-observed: true
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AfspraakItem'
+        statusNotifications:
+          type: array
+          items:
+            type: object
+
+    GeldendResultaat:
+      type: object
+      x-observed: true
+      description: |
+        `resultaten.RGeldendVoortgangsdossierResultaat`. The latest-results
+        call returned only `type=Toetskolom`. Herkansing codes seen there are
+        `EenKeerHoogste`, `EenkeerGemiddeld`, and `Geen`. Toetssoort codes
+        seen there are `Handelingsdeel`, `Praktische opdracht`,
+        `Schriftelijke overhoring`, and `Theoretische toets`.
+      properties:
+        $type:
+          type: string
+          example: resultaten.RGeldendVoortgangsdossierResultaat
+        cijfer:
+          type: number
+        cijferEerstePoging:
+          type: number
+        cijferHerkansing1:
+          type: number
+        label:
+          type: string
+        labelAfkorting:
+          type: string
+        isVoldoende:
+          type: boolean
+        isVoldoendeEerstePoging:
+          type: boolean
+        isVoldoendeHerkansing1:
+          type: boolean
+        periode:
+          type: integer
+        formattedResultaat:
+          type: string
+        formattedEerstePoging:
+          type: string
+        formattedHerkansing1:
+          type: string
+        volgnummer:
+          type: integer
+        type:
+          type: string
+        toetscode:
+          type: string
+        omschrijving:
+          type: string
+        weging:
+          type: number
+        datumInvoerEerstePoging:
+          type: string
+          format: date-time
+        datumInvoerHerkansing1:
+          type: string
+          format: date-time
+        isLabel:
+          type: boolean
+        isCijfer:
+          type: boolean
+        herkansing:
+          type: string
+        toetssoort:
+          type: string
+        opmerkingen:
+          type: string
+        opmerkingenEerstePoging:
+          type: string
+        bijzonderheid:
+          type: string
+          description: Seen on a report-average cell as `NietGemaakt`.
+        additionalObjects:
+          type: object
+          properties:
+            vaknaam:
+              type: string
+            resultaatkolom:
+              type: string
+            vakuuid:
+              type: string
+              format: uuid
+            lichtinguuid:
+              type: string
+              format: uuid
+            naamalternatiefniveau:
+              type: string
+            naamstandaardniveau:
+              type: string
+            periodeAfkorting:
+              type: string
+            leerjaar:
+              type: number
+            heeftalternatiefniveau:
+              type: boolean
+
+    GeldendResultaatList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeldendResultaat'
+
+    Plaatsing:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: plaatsing.RPlaatsing
+        UUID:
+          type: string
+          format: uuid
+        vanafDatum:
+          type: string
+          format: date
+        totDatum:
+          type: string
+          format: date
+        huidig:
+          type: boolean
+        stamgroepnaam:
+          type: string
+        opleidingsnaam:
+          type: string
+        leerjaar:
+          type: number
+        schooljaar:
+          $ref: '#/components/schemas/Schooljaar'
+        vestiging:
+          $ref: '#/components/schemas/Vestiging'
+
+    PlaatsingList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plaatsing'
+
+    Vakgemiddelde:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: resultaten.RLeerlingVakGemiddelde
+        vakkeuze:
+          $ref: '#/components/schemas/Vakkeuze'
+        voortgangsdossierResultaat:
+          $ref: '#/components/schemas/GeldendResultaat'
+
+    Vakgemiddelden:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: resultaten.RLeerlingVakGemiddelden
+        gemiddelden:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vakgemiddelde'
+
+    Vakkeuze:
+      type: object
+      x-observed: true
+      properties:
+        UUID:
+          type: string
+          format: uuid
+        vrijstelling:
+          type: boolean
+        vak:
+          $ref: '#/components/schemas/Vak'
+        lichting:
+          type: object
+          properties:
+            $type:
+              type: string
+              example: onderwijsinrichting.RLichting
+            naam:
+              type: string
+            UUID:
+              type: string
+              format: uuid
+
+    Cijferperiode:
+      type: object
+      x-observed: true
+      properties:
+        periode:
+          type: integer
+        datumVan:
+          type: string
+          format: date
+        datumTot:
+          type: string
+          format: date
+        lichtingSchooljaar:
+          type: object
+          properties:
+            leerjaar:
+              type: number
+            heeftExamendossier:
+              type: boolean
+            schooljaar:
+              $ref: '#/components/schemas/Schooljaar'
+        vestiging:
+          $ref: '#/components/schemas/Vestiging'
+
+    PeriodeResultaat:
+      type: object
+      x-observed: true
+      properties:
+        periode:
+          type: integer
+        rapportCijfer:
+          $ref: '#/components/schemas/GeldendResultaat'
+        resultaten:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeldendResultaat'
+
+    VakVoortgang:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: resultaten.RLeerlingVakVoortgangResultaat
+        vakkeuze:
+          $ref: '#/components/schemas/Vakkeuze'
+        perioden:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeriodeResultaat'
+        meervoudigeToetsnormering:
+          type: boolean
+        standaardNormering:
+          type: string
+          example: Standaard
+        alternatieveNormering:
+          type: string
+          example: Alternatief
+
+    Cijferoverzicht:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: resultaten.RLeerlingVoortgangResultaten
+        vakResultaten:
+          type: array
+          items:
+            $ref: '#/components/schemas/VakVoortgang'
+        cijferperioden:
+          type: array
+          items:
+            $ref: '#/components/schemas/Cijferperiode'
+
+    Registratie:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: participatie.registraties.RLeerlingRegistratie
+        omschrijving:
+          type: string
+        begin:
+          type: string
+          format: date-time
+        eind:
+          type: string
+          format: date-time
+        afgehandeld:
+          type: boolean
+        geoorloofd:
+          type: boolean
+        registratieSoort:
+          type: string
+          enum: [ABSENTIEMELDING, WAARNEMING]
+        registratieId:
+          type: integer
+          format: int64
+        afspraken:
+          type: array
+          items:
+            type: object
+
+    TeLaatRegistratie:
+      type: object
+      x-observed: true
+      properties:
+        afspraak:
+          $ref: '#/components/schemas/AfspraakItem'
+
+    RegistratieOverzicht:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: participatie.registraties.RLeerlingRegistraties
+        afwezigWaarnemingen:
+          type: array
+          items:
+            type: object
+        ongeoorloofdAfwezig:
+          type: array
+          items:
+            type: object
+        geoorloofdAfwezig:
+          type: array
+          items:
+            $ref: '#/components/schemas/Registratie'
+        teLaat:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeLaatRegistratie'
+        verwijderd:
+          type: array
+          items:
+            type: object
+        huiswerkNietGemaakt:
+          type: array
+          items:
+            type: object
+        materiaalNietInOrde:
+          type: array
+          items:
+            type: object
+
+    SchoolPagina:
+      type: object
+      x-observed: true
+      properties:
+        id:
+          type: integer
+          format: int64
+        titel:
+          type: string
+        icon:
+          type: string
+        introductie:
+          type: string
+          description: HTML
+        wijzigingsdatum:
+          type: string
+          format: date-time
+        publiceerdatum:
+          type: string
+          format: date-time
+        standaardPagina:
+          type: string
+          enum: [VAKANTIES, SCHOOLGEGEVENS]
+        paginaVestigingen:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                format: int64
+              vestiging:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    format: int64
+                  naam:
+                    type: string
+                  volgnummer:
+                    type: string
+        onderwerpen:
+          type: array
+          items:
+            type: object
+        documentmappen:
+          type: array
+          items:
+            type: object
+
+    SchoolPaginaList:
+      type: object
+      x-observed: true
+      properties:
+        paginas:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchoolPagina'
+
+    Schoolgegevens:
+      type: object
+      x-observed: true
+      properties:
+        leerlingId:
+          type: integer
+          format: int64
+        instellingsnaam:
+          type: string
+        plaats:
+          type: string
+        straat:
+          type: string
+        postcode:
+          type: string
+        telefoonnummer:
+          type: string
+        email:
+          type: string
+        leerjaar:
+          type: integer
+        stamgroepnaam:
+          type: string
+        loopbaan:
+          type: string
+        opleidingNaam:
+          type: string
+        mentoren:
+          type: array
+          items:
+            type: string
+        huidigeVestiging:
+          $ref: '#/components/schemas/Vestiging'
+
+    StudiewijzerBestand:
+      type: object
+      x-observed: true
+      properties:
+        bestanddataId:
+          type: string
+        bestandsnaam:
+          type: string
+        bestandsgrootte:
+          type: integer
+          format: int64
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+
+    StudiewijzerBijlage:
+      type: object
+      x-observed: true
+      properties:
+        omschrijving:
+          type: string
+        sortering:
+          type: integer
+          format: int64
+        zichtbaarVoorLeerling:
+          type: boolean
+        bestand:
+          $ref: '#/components/schemas/StudiewijzerBestand'
+
+    ExternMateriaal:
+      type: object
+      x-observed: false
+      description: Client field names. No non-empty array was sampled.
+      properties:
+        uri:
+          type: string
+        omschrijving:
+          type: string
+        sortering:
+          type: integer
+
+    Inlevermoment:
+      type: object
+      x-observed: true
+      properties:
+        omschrijving:
+          type: string
+        startGeldigheid:
+          type: string
+          format: date-time
+        eindGeldigheid:
+          type: string
+          format: date-time
+        startSortering:
+          type: integer
+        eindSortering:
+          type: integer
+        inleveringenAantal:
+          type: integer
+        inleveringenVerwacht:
+          type: integer
+        plagiaatDetectie:
+          type: boolean
+        stuurBerichtBijInlevering:
+          type: boolean
+
+    DagToekenning:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: studiewijzer.RSWIDagToekenning
+        datumTijd:
+          type: string
+          format: date-time
+        sortering:
+          type: integer
+        lesgroep:
+          $ref: '#/components/schemas/Lesgroep'
+        studiewijzerItem:
+          $ref: '#/components/schemas/StudiewijzerItem'
+        additionalObjects:
+          type: object
+          properties:
+            studiewijzerId:
+              type: integer
+              format: int64
+            swigemaaktVinkjes:
+              nullable: true
+            leerlingProjectgroep:
+              nullable: true
+
+    DagToekenningList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DagToekenning'
+
+    WeekToekenning:
+      type: object
+      x-observed: true
+      properties:
+        $type:
+          type: string
+          example: studiewijzer.RSWIWeekToekenning
+        weeknummerVanaf:
+          type: integer
+        weeknummerTm:
+          type: integer
+        sortering:
+          type: integer
+        studiewijzerItem:
+          $ref: '#/components/schemas/StudiewijzerItem'
+        additionalObjects:
+          type: object
+          properties:
+            studiewijzerId:
+              type: integer
+              format: int64
+            swigemaaktVinkjes:
+              nullable: true
+
+    WeekToekenningList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeekToekenning'
+
+    Ondertekenaar:
+      type: object
+      x-observed: false
+      properties:
+        naam:
+          type: string
+        relatie:
+          type: string
+        status:
+          type: string
+          enum: [OPENSTAAND, ONDERTEKEND, AFGEKEURD]
+        opmerking:
+          type: string
+        reactieDatumTijd:
+          type: string
+          format: date-time
+
+    Ondertekenverzoek:
+      type: object
+      x-observed: false
+      description: Client mapper. The live list was an empty array.
+      properties:
+        id:
+          type: string
+        leerlingUuid:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [ONDERTEKENVERZOEK]
+        titel:
+          type: string
+        verzenddatumTijd:
+          type: string
+          format: date-time
+        verloopdatumTijd:
+          type: string
+          format: date-time
+        afzender:
+          type: string
+        magOndertekenen:
+          type: boolean
+        status:
+          type: string
+          enum: [OPENSTAAND, DEELS_ONDERTEKEND, ONDERTEKEND, AFGEKEURD, INGETROKKEN, VERLOPEN]
+        ingetrokkenDatumTijd:
+          type: string
+          format: date-time
+        toelichting:
+          type: string
+        ondertekenaar:
+          $ref: '#/components/schemas/Ondertekenaar'
+
+    Ouderavond:
+      type: object
+      x-observed: false
+      description: Client mapper. No `/ouderavond/{id}` page was available to call.
+      properties:
+        inschrijfStatus:
+          type: string
+          enum: [NOG_GEEN_REACTIE, GEEN_GESPREK, GESPREKKEN_AANGEVRAAGD]
+        keuzesHash:
+          type: number
+        heeftAfspraak:
+          type: boolean
+        heeftMeerdereLeerlingUitnodigingenVoorDezeOuderavond:
+          type: boolean
+        isOpmerkingVoorRoostermakerToegestaan:
+          type: boolean
+        opmerkingVoorRoostermaker:
+          type: string
+        laatsteReactie:
+          type: string
+        leerling:
+          type: object
+        dagen:
+          type: array
+          items:
+            type: object
+            properties:
+              datum:
+                type: string
+              zermeloId:
+                type: number
+        afspraakVerzoeken:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              aangevraagd:
+                type: boolean
+              titel:
+                type: string
+              vak:
+                type: string
+              extraGesprekstijd:
+                type: boolean
+              opmerkingVoorDocenten:
+                type: string
+              docenten:
+                type: array
+                items:
+                  type: object
+        voorkeurssloten:
+          type: array
+          items:
+            type: object
+            properties:
+              isVerzorgerAfwezig:
+                type: boolean
+              span:
+                type: string
+              ouderavondDatumId:
+                type: number
+              title:
+                type: string
+              zermeloId:
+                type: number
+        ouderavond:
+          type: object
+          properties:
+            naam:
+              type: string
+            omschrijving:
+              type: string
+            aanvragenTot:
+              type: string
+            maxAantalGesprekken:
+              type: number
+            verwijderdUitZermelo:
+              type: boolean
+            opmerkingDocentToegestaan:
+              type: boolean
+            extraLangGesprekToegestaan:
+              type: boolean
+
+    ZelfplannenAfspraak:
+      type: object
+      x-observed: false
+      properties:
+        uuid:
+          type: string
+        titel:
+          type: string
+        begindatumtijd:
+          type: string
+          format: date-time
+        einddatumtijd:
+          type: string
+          format: date-time
+        locatie:
+          type: string
+        omschrijving:
+          type: string
+
+    ZelfplannenTaak:
+      type: object
+      x-observed: false
+      properties:
+        uuid:
+          type: string
+        titel:
+          type: string
+        inplannenOp:
+          type: string
+          format: date
+        gemaakt:
+          type: boolean
+        omschrijving:
+          type: string
+          nullable: true
+
