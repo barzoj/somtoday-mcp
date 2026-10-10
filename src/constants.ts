@@ -10,6 +10,8 @@ export const REDIRECT_URI =
 export const AUTHORIZE_URL = "https://inloggen.somtoday.nl/oauth2/authorize";
 export const TOKEN_URL = "https://inloggen.somtoday.nl/oauth2/token";
 export const SCHOOLS_URL = "https://servers.somtoday.nl/organisaties.json";
+export const SCHOOLS_MIRROR_URL =
+  "https://raw.githubusercontent.com/NONtoday/organisaties.json/master/organisaties.json";
 
 export const DEFAULT_API_BASE = "https://api.somtoday.nl";
 export const API_PREFIX = "/rest/v1";

@@ -1,4 +1,5 @@
-import { SCHOOLS_URL } from "../constants.js";
+import { SCHOOLS_MIRROR_URL, SCHOOLS_URL } from "../constants.js";
+import { formatError } from "../errors.js";
 
 export type School = {
   uuid: string;
@@ -13,6 +14,8 @@ type OrganisatiePayload = Array<{
     plaats?: string;
   }>;
 }>;
+
+export const SCHOOL_LIST_SOURCES = [SCHOOLS_URL, SCHOOLS_MIRROR_URL] as const;
 
 export function matchSchools(schools: School[], query: string): School[] {
   const needle = query.trim().toLowerCase();
@@ -44,13 +47,41 @@ export function parseSchools(payload: unknown): School[] {
 export async function fetchSchools(
   fetchFn: typeof fetch = fetch,
 ): Promise<School[]> {
-  const response = await fetchFn(SCHOOLS_URL, {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    throw new Error(`School list failed: HTTP ${response.status}`);
+  const errors: string[] = [];
+  for (const url of SCHOOL_LIST_SOURCES) {
+    try {
+      const response = await fetchFn(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "somtoday-mcp/0.1.0",
+        },
+        // The official host now 301s into a Cloudflare login challenge.
+        redirect: url === SCHOOLS_URL ? "manual" : "follow",
+      });
+      if (response.status >= 300 && response.status < 400) {
+        errors.push(`${url} HTTP ${response.status}`);
+        continue;
+      }
+      if (!response.ok) {
+        errors.push(`${url} HTTP ${response.status}`);
+        continue;
+      }
+      const text = await response.text();
+      if (text.trimStart().startsWith("<")) {
+        errors.push(`${url} returned HTML`);
+        continue;
+      }
+      const schools = parseSchools(JSON.parse(text) as unknown);
+      if (schools.length === 0) {
+        errors.push(`${url} had no schools`);
+        continue;
+      }
+      return schools;
+    } catch (error) {
+      errors.push(`${url} ${formatError(error)}`);
+    }
   }
-  return parseSchools(await response.json());
+  throw new Error(`School list failed. ${errors.join("; ")}`);
 }
 
 export function schoolLabel(school: School): string {

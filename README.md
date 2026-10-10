@@ -13,11 +13,14 @@ npx somtoday-mcp            # MCP stdio server (stdout is JSON-RPC only)
 npx somtoday-mcp login      # interactive login
 ```
 
-During development, after `npm run build`:
+Until the package is on npm, do not use `npx somtoday-mcp` — that hits the registry. From a checkout:
 
 ```bash
-node dist/cli.js
+npm install
+npm run build
+npx playwright install chromium   # once, for login
 node dist/cli.js login
+node dist/cli.js
 ```
 
 Chromium is required once for login:
@@ -64,7 +67,7 @@ Do not run login from inside an MCP tool. Stdin is the protocol.
 
 ## Login
 
-1. The CLI asks for a school name and matches `https://servers.somtoday.nl/organisaties.json`. Several matches means ask again. Nothing is hardcoded.
+1. The CLI asks for a school name and matches `https://servers.somtoday.nl/organisaties.json`. That host now 301s into a Cloudflare login page, so a failed or redirected fetch falls back to the public `organisaties.json` mirror. Several matches means ask again. Nothing is hardcoded.
 2. PKCE S256 with public client `somtoday-leerling-native` and redirect `somtoday://nl.topicus.somtoday.leerling/oauth/callback`.
 3. Headed Chromium (5 minute timeout). The identity provider 302s to a custom scheme; Playwright captures that URL from `request` / `requestfailed`. A loopback HTTP server will not see it. The OS handler is not registered.
 4. The authorization code is exchanged at `https://inloggen.somtoday.nl/oauth2/token`. On rejection, one retry adds `session=no_session` and `tenant_uuid`.

@@ -1,9 +1,13 @@
 #!/usr/bin/env node
+import { setDefaultResultOrder } from "node:dns";
 import { assertNoPasswordArgs, runLogin } from "./auth/login.js";
 import { createDefaultStore } from "./auth/keychain-store.js";
 import { SessionManager } from "./auth/session.js";
+import { formatError } from "./errors.js";
 import { logError } from "./log.js";
 import { startStdioServer } from "./server.js";
+
+setDefaultResultOrder("ipv4first");
 
 async function main(): Promise<void> {
   assertNoPasswordArgs(process.argv.slice(2));
@@ -19,6 +23,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  logError(error instanceof Error ? error.message : error);
+  logError(formatError(error));
   process.exitCode = 1;
 });
