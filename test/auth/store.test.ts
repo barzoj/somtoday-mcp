@@ -27,30 +27,44 @@ describe("secret stores", () => {
     expect(await store.load()).toEqual(FAKE_SESSION);
   });
 
-  it("does not put the refresh token on the security argv", async () => {
-    const seen: string[][] = [];
+  it("passes the session to security as the -w argv value", async () => {
     let stored = "";
     const fallback = new MemorySecretStore();
-    const store = new KeychainSecretStore(fallback, async (args, stdin) => {
-      seen.push(args);
-      if (stdin) {
-        stored = stdin;
+    const store = new KeychainSecretStore(fallback, async (args) => {
+      const flag = args.indexOf("-w");
+      if (args[0] === "add-generic-password" && flag >= 0) {
+        stored = args[flag + 1] ?? "";
       }
       return stored;
     });
     await store.save(FAKE_SESSION);
-    expect(seen[0]?.join(" ")).not.toContain(FAKE_SESSION.refreshToken);
-    expect(stored).toContain(FAKE_SESSION.refreshToken);
+    expect(JSON.parse(stored)).toEqual(FAKE_SESSION);
     expect(await store.load()).toEqual(FAKE_SESSION);
   });
 
-  it("falls back to the file store when the keychain command fails", async () => {
+  it("clears a leftover keychain item before writing the file fallback", async () => {
+    const stale = { ...FAKE_SESSION, refreshToken: "stale-refresh-not-real" };
+    let keychain: string | null = JSON.stringify(stale);
     const dir = await mkdtemp(join(tmpdir(), "somtoday-mcp-kc-"));
     const fallback = new FileSecretStore(join(dir, "session.json"));
-    const store = new KeychainSecretStore(fallback, async () => {
-      throw new Error("security unavailable");
+    const store = new KeychainSecretStore(fallback, async (args) => {
+      if (args[0] === "add-generic-password") {
+        throw new Error("security add failed");
+      }
+      if (args[0] === "delete-generic-password") {
+        keychain = null;
+        return "";
+      }
+      if (args[0] === "find-generic-password") {
+        if (!keychain) {
+          throw new Error("not found");
+        }
+        return keychain;
+      }
+      throw new Error(`unexpected ${args[0]}`);
     });
     await store.save(FAKE_SESSION);
+    expect(keychain).toBeNull();
     expect(await store.load()).toEqual(FAKE_SESSION);
     const mode = (await stat(fallback.path)).mode & 0o777;
     expect(mode).toBe(0o600);

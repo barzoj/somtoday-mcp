@@ -3,16 +3,11 @@ import { KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE } from "../constants.js";
 import { FileSecretStore } from "./file-store.js";
 import type { SecretStore, StoredSession } from "./store.js";
 
-export type SecurityRunner = (
-  args: string[],
-  stdin?: string,
-) => Promise<string>;
+export type SecurityRunner = (args: string[]) => Promise<string>;
 
-function defaultSecurity(args: string[], stdin?: string): Promise<string> {
+function defaultSecurity(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("security", args, {
-      stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-    });
+    const child = spawn("security", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout?.on("data", (chunk: Buffer) => {
@@ -21,10 +16,6 @@ function defaultSecurity(args: string[], stdin?: string): Promise<string> {
     child.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString("utf8");
     });
-    if (stdin !== undefined) {
-      child.stdin?.write(stdin);
-      child.stdin?.end();
-    }
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) {
@@ -44,19 +35,19 @@ export class KeychainSecretStore implements SecretStore {
 
   async save(session: StoredSession): Promise<void> {
     try {
-      await this.runSecurity(
-        [
-          "add-generic-password",
-          "-U",
-          "-s",
-          KEYCHAIN_SERVICE,
-          "-a",
-          KEYCHAIN_ACCOUNT,
-          "-w",
-        ],
+      // `security` requires -w VALUE on argv (getopt `w:`). Stdin is ignored.
+      await this.runSecurity([
+        "add-generic-password",
+        "-U",
+        "-s",
+        KEYCHAIN_SERVICE,
+        "-a",
+        KEYCHAIN_ACCOUNT,
+        "-w",
         JSON.stringify(session),
-      );
+      ]);
     } catch {
+      await this.deleteKeychainItem();
       await this.fallback.save(session);
     }
   }
@@ -82,6 +73,11 @@ export class KeychainSecretStore implements SecretStore {
   }
 
   async delete(): Promise<void> {
+    await this.deleteKeychainItem();
+    await this.fallback.delete();
+  }
+
+  private async deleteKeychainItem(): Promise<void> {
     try {
       await this.runSecurity([
         "delete-generic-password",
@@ -91,9 +87,8 @@ export class KeychainSecretStore implements SecretStore {
         KEYCHAIN_ACCOUNT,
       ]);
     } catch {
-      // continue to fallback
+      // item may already be missing
     }
-    await this.fallback.delete();
   }
 }
 
