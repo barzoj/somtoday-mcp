@@ -27,6 +27,23 @@ describe("secret stores", () => {
     expect(await store.load()).toEqual(FAKE_SESSION);
   });
 
+  it("does not put the refresh token on the security argv", async () => {
+    const seen: string[][] = [];
+    let stored = "";
+    const fallback = new MemorySecretStore();
+    const store = new KeychainSecretStore(fallback, async (args, stdin) => {
+      seen.push(args);
+      if (stdin) {
+        stored = stdin;
+      }
+      return stored;
+    });
+    await store.save(FAKE_SESSION);
+    expect(seen[0]?.join(" ")).not.toContain(FAKE_SESSION.refreshToken);
+    expect(stored).toContain(FAKE_SESSION.refreshToken);
+    expect(await store.load()).toEqual(FAKE_SESSION);
+  });
+
   it("falls back to the file store when the keychain command fails", async () => {
     const dir = await mkdtemp(join(tmpdir(), "somtoday-mcp-kc-"));
     const fallback = new FileSecretStore(join(dir, "session.json"));

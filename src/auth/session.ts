@@ -6,7 +6,8 @@ import type { SecretStore, StoredSession } from "./store.js";
 export class SessionManager {
   private accessToken: string | null = null;
   private expiresAt = 0;
-  private cached: StoredSession | null | undefined;
+  private cached: StoredSession | null = null;
+  private refreshInFlight: Promise<void> | null = null;
 
   constructor(
     private readonly store: SecretStore,
@@ -19,9 +20,10 @@ export class SessionManager {
   }
 
   async stored(): Promise<StoredSession | null> {
-    if (this.cached === undefined) {
-      this.cached = await this.store.load();
+    if (this.cached) {
+      return this.cached;
     }
+    this.cached = await this.store.load();
     return this.cached;
   }
 
@@ -77,26 +79,40 @@ export class SessionManager {
   }
 
   async refresh(): Promise<void> {
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = this.refreshUnlocked().finally(() => {
+        this.refreshInFlight = null;
+      });
+    }
+    return this.refreshInFlight;
+  }
+
+  private async refreshUnlocked(): Promise<void> {
     const stored = await this.stored();
     if (!stored) {
       throw new LoginRequiredError();
     }
-    const tokens = await refreshAccessToken({
-      refreshToken: stored.refreshToken,
-      clientId: stored.clientId,
-      fetchFn: this.fetchFn,
-    });
-    this.accessToken = tokens.accessToken;
-    this.expiresAt = this.clock() + tokens.expiresIn * 1000;
-    const next: StoredSession = {
-      ...stored,
-      refreshToken: tokens.refreshToken,
-      clientId: tokens.clientId,
-      apiBaseUrl: tokens.apiBaseUrl || stored.apiBaseUrl,
-    };
-    this.cached = next;
-    if (tokens.refreshToken !== stored.refreshToken || tokens.clientId !== stored.clientId) {
-      await this.store.save(next);
+    try {
+      const tokens = await refreshAccessToken({
+        refreshToken: stored.refreshToken,
+        clientId: stored.clientId,
+        fetchFn: this.fetchFn,
+      });
+      this.accessToken = tokens.accessToken;
+      this.expiresAt = this.clock() + tokens.expiresIn * 1000;
+      const next: StoredSession = {
+        ...stored,
+        refreshToken: tokens.refreshToken,
+        clientId: tokens.clientId,
+        apiBaseUrl: tokens.apiBaseUrl || stored.apiBaseUrl,
+      };
+      this.cached = next;
+      if (tokens.refreshToken !== stored.refreshToken || tokens.clientId !== stored.clientId) {
+        await this.store.save(next);
+      }
+    } catch {
+      this.clearAccessToken();
+      throw new LoginRequiredError();
     }
   }
 

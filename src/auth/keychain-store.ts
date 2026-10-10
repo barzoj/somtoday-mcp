@@ -3,19 +3,28 @@ import { KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE } from "../constants.js";
 import { FileSecretStore } from "./file-store.js";
 import type { SecretStore, StoredSession } from "./store.js";
 
-export type SecurityRunner = (args: string[]) => Promise<string>;
+export type SecurityRunner = (
+  args: string[],
+  stdin?: string,
+) => Promise<string>;
 
-function defaultSecurity(args: string[]): Promise<string> {
+function defaultSecurity(args: string[], stdin?: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("security", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("security", args, {
+      stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+    });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => {
+    child.stdout?.on("data", (chunk: Buffer) => {
       stdout += chunk.toString("utf8");
     });
-    child.stderr.on("data", (chunk: Buffer) => {
+    child.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString("utf8");
     });
+    if (stdin !== undefined) {
+      child.stdin?.write(stdin);
+      child.stdin?.end();
+    }
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) {
@@ -35,16 +44,18 @@ export class KeychainSecretStore implements SecretStore {
 
   async save(session: StoredSession): Promise<void> {
     try {
-      await this.runSecurity([
-        "add-generic-password",
-        "-U",
-        "-s",
-        KEYCHAIN_SERVICE,
-        "-a",
-        KEYCHAIN_ACCOUNT,
-        "-w",
+      await this.runSecurity(
+        [
+          "add-generic-password",
+          "-U",
+          "-s",
+          KEYCHAIN_SERVICE,
+          "-a",
+          KEYCHAIN_ACCOUNT,
+          "-w",
+        ],
         JSON.stringify(session),
-      ]);
+      );
     } catch {
       await this.fallback.save(session);
     }
