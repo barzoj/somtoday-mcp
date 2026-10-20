@@ -22,6 +22,8 @@ export type AllOptions = {
   pageSize?: number;
   /** Stop after this many items. */
   maxItems?: number;
+  /** Sees every page body (for top-level fields next to `items`). */
+  onPage?: (body: unknown) => void;
 };
 
 export const PAGE_SIZE = 100;
@@ -94,6 +96,7 @@ export class ApiClient {
         accept: options.accept,
         range: { start, end },
       });
+      options.onPage?.(response.body);
       const pageItems = listItems<T>(response.body);
       items.push(...pageItems);
       const range = parseContentRange(response.contentRange);

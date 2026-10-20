@@ -9,6 +9,7 @@ import { createToolContext } from "./tools/context.js";
 import { gradesTool } from "./tools/grades.js";
 import { homeworkTool } from "./tools/homework.js";
 import { lessonsTool } from "./tools/lessons.js";
+import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
 import { packageVersion } from "./packageVersion.js";
@@ -63,6 +64,20 @@ export function createServer(
       inputSchema: { date: dateArg, leerlingId: leerlingArg },
     },
     async ({ date, leerlingId }) => lessonsTool(ctx, { date, leerlingId }),
+  );
+
+  server.registerTool(
+    "schedule",
+    {
+      title: "Schedule",
+      description:
+        "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (meldingen/wijziging), attachments, and holidays. Defaults to today plus 6 days; at most 42 days.",
+      inputSchema: {
+        ...rangeArgs("Defaults to today."),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => scheduleTool(ctx, args),
   );
 
   server.registerTool(
