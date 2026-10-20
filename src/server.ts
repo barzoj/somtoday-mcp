@@ -22,6 +22,7 @@ import {
   parentEveningTool,
   signingRequestsTool,
 } from "./tools/misc.js";
+import { downloadAttachmentTool } from "./tools/download.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -387,6 +388,17 @@ export function createServer(
       inputSchema: {},
     },
     async () => consentsTool(ctx),
+  );
+
+  server.registerTool(
+    "download_attachment",
+    {
+      title: "Download attachment",
+      description:
+        "Read an attachment (fileUrl from homework, assignments, study material or messages). Only https Somtoday file hosts; max 10 MB; returns extracted text for PDF/text/HTML/CSV/JSON, metadata otherwise.",
+      inputSchema: { url: z.string().url() },
+    },
+    async (args) => downloadAttachmentTool(ctx, args),
   );
 
   server.registerTool(
