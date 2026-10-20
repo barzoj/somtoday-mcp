@@ -43,7 +43,9 @@ export function isoWeekParts(ymd: string): { year: number; week: number } {
   date.setUTCDate(date.getUTCDate() + 4 - weekday);
   const isoYear = date.getUTCFullYear();
   const yearStart = new Date(Date.UTC(isoYear, 0, 1));
-  const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  const week = Math.ceil(
+    ((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7,
+  );
   return { year: isoYear, week };
 }
 
@@ -64,7 +66,9 @@ export function dateInInclusiveRange(
   if (!start || !end) {
     return false;
   }
-  const startDay = start.includes("T") ? amsterdamYmd(start) : start.slice(0, 10);
+  const startDay = start.includes("T")
+    ? amsterdamYmd(start)
+    : start.slice(0, 10);
   const endDay = end.includes("T") ? amsterdamYmd(end) : end.slice(0, 10);
   return ymd >= startDay && ymd <= endDay;
 }

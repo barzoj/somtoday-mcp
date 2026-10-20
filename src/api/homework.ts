@@ -1,4 +1,8 @@
-import { dateInInclusiveRange, isoWeekParts, sameAmsterdamDate } from "../dates.js";
+import {
+  dateInInclusiveRange,
+  isoWeekParts,
+  sameAmsterdamDate,
+} from "../dates.js";
 import { htmlToPlain } from "../html.js";
 import { HOMEWORK_ADDITIONALS } from "../constants.js";
 import { repeatedParams, type ApiClient } from "./client.js";
@@ -19,9 +23,15 @@ export type HomeworkView = {
   bijlagen: string[];
 };
 
-export function homeworkQuery(leerlingId: number, extra?: URLSearchParams): URLSearchParams {
+export function homeworkQuery(
+  leerlingId: number,
+  extra?: URLSearchParams,
+): URLSearchParams {
   const query = extra ? new URLSearchParams(extra) : new URLSearchParams();
-  query.set("geenDifferentiatieOfGedifferentieerdVoorLeerling", String(leerlingId));
+  query.set(
+    "geenDifferentiatieOfGedifferentieerdVoorLeerling",
+    String(leerlingId),
+  );
   repeatedParams("additional", HOMEWORK_ADDITIONALS, query);
   return query;
 }
@@ -32,11 +42,19 @@ export function handInQuery(leerlingId: number): URLSearchParams {
   return query;
 }
 
-export function filterDatedHomework(items: HomeworkItem[], ymd: string): HomeworkItem[] {
-  return items.filter((item) => item.datumTijd && sameAmsterdamDate(item.datumTijd, ymd));
+export function filterDatedHomework(
+  items: HomeworkItem[],
+  ymd: string,
+): HomeworkItem[] {
+  return items.filter(
+    (item) => item.datumTijd && sameAmsterdamDate(item.datumTijd, ymd),
+  );
 }
 
-export function filterWeekHomework(items: HomeworkItem[], ymd: string): HomeworkItem[] {
+export function filterWeekHomework(
+  items: HomeworkItem[],
+  ymd: string,
+): HomeworkItem[] {
   const { week } = isoWeekParts(ymd);
   return items.filter((item) => {
     if (item.weeknummerVanaf == null || item.weeknummerTm == null) {
@@ -46,7 +64,10 @@ export function filterWeekHomework(items: HomeworkItem[], ymd: string): Homework
   });
 }
 
-export function filterHandInsForDate(items: HomeworkItem[], ymd: string): HomeworkItem[] {
+export function filterHandInsForDate(
+  items: HomeworkItem[],
+  ymd: string,
+): HomeworkItem[] {
   return items.filter((item) =>
     (item.studiewijzerItem?.inlevermomenten ?? []).some((window) =>
       dateInInclusiveRange(ymd, window.startGeldigheid, window.eindGeldigheid),
@@ -97,9 +118,18 @@ export async function fetchHomeworkSets(
   weekOnly.set("weeknummer", String(week));
 
   const [afspraak, dag, weekItems, inlever] = await Promise.all([
-    client.get<ItemList<HomeworkItem>>("/studiewijzeritemafspraaktoekenningen", weekQuery),
-    client.get<ItemList<HomeworkItem>>("/studiewijzeritemdagtoekenningen", weekQuery),
-    client.get<ItemList<HomeworkItem>>("/studiewijzeritemweektoekenningen", weekOnly),
+    client.get<ItemList<HomeworkItem>>(
+      "/studiewijzeritemafspraaktoekenningen",
+      weekQuery,
+    ),
+    client.get<ItemList<HomeworkItem>>(
+      "/studiewijzeritemdagtoekenningen",
+      weekQuery,
+    ),
+    client.get<ItemList<HomeworkItem>>(
+      "/studiewijzeritemweektoekenningen",
+      weekOnly,
+    ),
     client.get<ItemList<HomeworkItem>>(
       "/studiewijzeritemdagtoekenningen",
       handInQuery(leerlingId),

@@ -18,9 +18,13 @@ const dateArg = z
 const leerlingArg = z
   .string()
   .optional()
-  .describe("Numeric leerling id. Required when more than one child is linked.");
+  .describe(
+    "Numeric leerling id. Required when more than one child is linked.",
+  );
 
-export function createServer(session = new SessionManager(createDefaultStore())): McpServer {
+export function createServer(
+  session = new SessionManager(createDefaultStore()),
+): McpServer {
   const ctx = createToolContext(session);
   const server = new McpServer({
     name: "somtoday",

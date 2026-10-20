@@ -1,4 +1,8 @@
-import { dateInInclusiveRange, isoWeekParts, sameAmsterdamDate } from "../dates.js";
+import {
+  dateInInclusiveRange,
+  isoWeekParts,
+  sameAmsterdamDate,
+} from "../dates.js";
 import type { ApiClient } from "./client.js";
 import type { AfspraakItem, HolidayItem, ItemList } from "./types.js";
 
@@ -17,21 +21,29 @@ export function filterLessonsForDate(
   items: AfspraakItem[],
   ymd: string,
 ): LessonView[] {
-  return items.filter((item) => item.beginDatumTijd && sameAmsterdamDate(item.beginDatumTijd, ymd)).map((item) => ({
-    beginDatumTijd: item.beginDatumTijd,
-    eindDatumTijd: item.eindDatumTijd,
-    beginLesuur: item.beginLesuur,
-    eindLesuur: item.eindLesuur,
-    locatie: item.locatie,
-    titel: item.titel,
-    vak: item.vak
-      ? { naam: item.vak.naam, afkorting: item.vak.afkorting }
-      : undefined,
-    docentNamen: item.docentNamen,
-  }));
+  return items
+    .filter(
+      (item) =>
+        item.beginDatumTijd && sameAmsterdamDate(item.beginDatumTijd, ymd),
+    )
+    .map((item) => ({
+      beginDatumTijd: item.beginDatumTijd,
+      eindDatumTijd: item.eindDatumTijd,
+      beginLesuur: item.beginLesuur,
+      eindLesuur: item.eindLesuur,
+      locatie: item.locatie,
+      titel: item.titel,
+      vak: item.vak
+        ? { naam: item.vak.naam, afkorting: item.vak.afkorting }
+        : undefined,
+      docentNamen: item.docentNamen,
+    }));
 }
 
-export function holidaysOnDate(items: HolidayItem[], ymd: string): HolidayItem[] {
+export function holidaysOnDate(
+  items: HolidayItem[],
+  ymd: string,
+): HolidayItem[] {
   return items.filter((item) => {
     const start = item.beginDatum ?? item.startDatum ?? item.vanafDatum;
     const end = item.eindDatum ?? item.totDatum;
@@ -52,6 +64,8 @@ export async function fetchWeekLessons(
 }
 
 export async function fetchHolidays(client: ApiClient): Promise<HolidayItem[]> {
-  const { body } = await client.get<ItemList<HolidayItem>>("/vakanties/verzorger");
+  const { body } = await client.get<ItemList<HolidayItem>>(
+    "/vakanties/verzorger",
+  );
   return body.items ?? [];
 }

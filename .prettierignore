@@ -1,0 +1,11 @@
+dist
+coverage
+node_modules
+package-lock.json
+*.tgz
+CHANGELOG.md
+ouder-portal.openapi.yaml
+# Auth code is left as-is until the pending auth rework lands, to avoid conflicts.
+src/auth/**
+src/pkce.ts
+test/auth/**
