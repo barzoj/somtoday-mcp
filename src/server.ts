@@ -15,6 +15,7 @@ import { subjectGradesTool } from "./tools/subject-grades.js";
 import { examGradesTool } from "./tools/exam-grades.js";
 import { absenceTool } from "./tools/absence.js";
 import { messagesTool } from "./tools/messages.js";
+import { announcementsTool, newsTool } from "./tools/news.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -277,6 +278,36 @@ export function createServer(
       },
     },
     async (args) => messagesTool(ctx, args),
+  );
+
+  server.registerTool(
+    "news",
+    {
+      title: "School news",
+      description:
+        "News items from the school (nieuwsberichten), newest first, as text, plus the unread count.",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Default 25."),
+      },
+    },
+    async (args) => newsTool(ctx, args),
+  );
+
+  server.registerTool(
+    "announcements",
+    {
+      title: "Announcements",
+      description:
+        "Somtoday-wide announcements (landelijke mededelingen) shown in the portal, with publication window.",
+      inputSchema: {},
+    },
+    async () => announcementsTool(ctx),
   );
 
   server.registerTool(
