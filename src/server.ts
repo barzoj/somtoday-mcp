@@ -10,6 +10,7 @@ import { gradesTool } from "./tools/grades.js";
 import { homeworkTool } from "./tools/homework.js";
 import { lessonsTool } from "./tools/lessons.js";
 import { gradesLatestTool } from "./tools/grades-latest.js";
+import { gradesOverviewTool } from "./tools/grades-overview.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -174,6 +175,23 @@ export function createServer(
       },
     },
     async (args) => gradesLatestTool(ctx, args),
+  );
+
+  server.registerTool(
+    "grades_overview",
+    {
+      title: "Grade overview",
+      description:
+        "The full grade overview (cijferoverzicht) for a school year: every subject with every result per period, report grades, weights and remarks. Defaults to the current placement; schooljaar like 2025/2026 picks another year.",
+      inputSchema: {
+        schooljaar: z
+          .string()
+          .optional()
+          .describe('School year name, e.g. "2025/2026".'),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => gradesOverviewTool(ctx, args),
   );
 
   server.registerTool(
