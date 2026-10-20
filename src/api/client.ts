@@ -155,10 +155,16 @@ export class ApiClient {
     if (response.status === 403 || response.status === 404) {
       throw new ApiNotAvailableError(response.status, path);
     }
-    if (response.status !== 200 && response.status !== 206) {
+    if (
+      response.status !== 200 &&
+      response.status !== 204 &&
+      response.status !== 206
+    ) {
       throw new Error(`API HTTP ${response.status}`);
     }
-    const body = (await response.json()) as T;
+    // 204 No Content (e.g. no message recipients) or an empty body is an empty result.
+    const text = response.status === 204 ? "" : await response.text();
+    const body = (text.trim() === "" ? { items: [] } : JSON.parse(text)) as T;
     return {
       status: response.status,
       body,

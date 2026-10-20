@@ -162,3 +162,23 @@ describe("teachers", () => {
     ]);
   });
 });
+
+describe("empty answers", () => {
+  it("treats 204 No Content as an empty teacher list", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/medewerkers\/ontvangers/, () => new Response(null, { status: 204 })],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const result = await teachersTool(ctx);
+    expect(result.isError).toBeFalsy();
+    expect(toolJson(result).docenten).toEqual([]);
+  });
+
+  it("treats a 200 with an empty body as empty", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/medewerkers\/ontvangers/, () => new Response("", { status: 200 })],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    expect(toolJson(await teachersTool(ctx)).docenten).toEqual([]);
+  });
+});
