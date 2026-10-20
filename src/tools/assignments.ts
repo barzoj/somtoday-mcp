@@ -1,4 +1,4 @@
-import { fetchAssignmentDetail, fetchAssignments } from "../api/assignments.js";
+import { fetchAssignments, findAssignment } from "../api/assignments.js";
 import { childTool } from "./child-tool.js";
 import type { ToolContext } from "./context.js";
 import type { ToolResult } from "./result.js";
@@ -25,18 +25,52 @@ export async function assignmentsTool(
   );
 }
 
+/**
+ * What the parent portal shows when an assignment is opened: the item from the
+ * hand-in list (`studiewijzeritemdagtoekenningen`) with instruction, files,
+ * links, window and status. The portal only loads
+ * `studiewijzeritemdagtoekenningen/inleverdetails/{id}` (submissions and
+ * teacher reactions) in a student session; for a parent session the API
+ * answers 400, so it is not called here.
+ */
 export async function assignmentDetailTool(
   ctx: ToolContext,
   args: { toekenningId: string; leerlingId?: string },
+  now = new Date(),
 ): Promise<ToolResult> {
-  return childTool(ctx, args.leerlingId, "huiswerkBekijkenAan", async () => {
-    const id = Number(args.toekenningId);
-    if (!Number.isInteger(id) || id <= 0) {
-      throw new Error("toekenningId must be the numeric id from `assignments`");
-    }
-    return {
-      toekenningId: id,
-      ...(await fetchAssignmentDetail(ctx.client, id)),
-    };
-  });
+  return childTool(
+    ctx,
+    args.leerlingId,
+    "huiswerkBekijkenAan",
+    async (child) => {
+      const id = String(args.toekenningId).trim();
+      if (!/^\d+$/.test(id)) {
+        throw new Error(
+          "toekenningId must be the numeric id from `assignments`",
+        );
+      }
+      const { item: opdracht, total } = await findAssignment(
+        ctx.client,
+        child.leerlingId,
+        id,
+        now,
+      );
+      if (!opdracht) {
+        throw new Error(
+          `No hand-in assignment with toekenningId ${id} among the ${total} from \`assignments\`. Homework items (lesson/day/week toekenningen) are not hand-ins and already contain all their details.`,
+        );
+      }
+      return {
+        toekenningId: opdracht.toekenningId,
+        opdracht,
+        inleveringen: {
+          available: false,
+          reason: SUBMISSIONS_STUDENT_ONLY,
+        },
+      };
+    },
+  );
 }
+
+export const SUBMISSIONS_STUDENT_ONLY =
+  "Somtoday shows the submitted files and teacher reactions only in the student's own session; a parent sees the instruction, files, links, hand-in window and status (in opdracht).";

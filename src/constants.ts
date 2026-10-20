@@ -31,7 +31,7 @@ export const SESSION_NO = "no_session";
 
 export const REFRESH_SKEW_MS = 60_000;
 export const TOKEN_TIMEOUT_MS = 20_000;
-export const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+export const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 
 export const TIMEZONE = "Europe/Amsterdam";
 

@@ -34,20 +34,33 @@ const dateArg = z
   .optional()
   .describe("Amsterdam calendar date. Defaults to tomorrow.");
 
-const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
+const ymd = () => z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
 
 const rangeArgs = (defaultText: string) => ({
-  date: ymd.optional().describe("One Amsterdam calendar date."),
-  from: ymd.optional().describe(`First date of the range. ${defaultText}`),
-  to: ymd.optional().describe("Last date of the range (inclusive)."),
+  date: ymd().optional().describe("One Amsterdam calendar date."),
+  from: ymd().optional().describe(`First date of the range. ${defaultText}`),
+  to: ymd().optional().describe("Last date of the range (inclusive)."),
 });
 
-const leerlingArg = z
-  .string()
-  .optional()
-  .describe(
-    "Numeric leerling id. Required when more than one child is linked.",
-  );
+/**
+ * Ids arrive as JSON numbers from our own output (toekenningId, leerlingId, ...)
+ * or as strings typed by a person; accept both and hand the tool a string.
+ */
+// A factory, so every field gets its own schema (no shared `$ref` in the JSON schema).
+const numericId = () =>
+  z
+    .union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)])
+    .transform(String);
+
+/** Free-text or numeric reference (subject name/abbreviation/uuid, page slug). */
+const textOrNumber = () => z.union([z.string(), z.number()]).transform(String);
+
+const leerlingArg = () =>
+  numericId()
+    .optional()
+    .describe(
+      "Numeric leerling id. Required when more than one child is linked.",
+    );
 
 export function createServer(
   session: SessionManager = createDefaultSession(),
@@ -75,7 +88,7 @@ export function createServer(
       title: "Lessons",
       description:
         "Timetable for one Amsterdam date, plus whether that date is a holiday.",
-      inputSchema: { date: dateArg, leerlingId: leerlingArg },
+      inputSchema: { date: dateArg, leerlingId: leerlingArg() },
     },
     async ({ date, leerlingId }) => lessonsTool(ctx, { date, leerlingId }),
   );
@@ -88,7 +101,7 @@ export function createServer(
         "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (meldingen/wijziging), attachments, and holidays. Defaults to today plus 6 days; at most 42 days.",
       inputSchema: {
         ...rangeArgs("Defaults to today."),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => scheduleTool(ctx, args),
@@ -99,10 +112,11 @@ export function createServer(
     {
       title: "Homework / study planner",
       description:
-        "What to do and learn on which day: every studiewijzer item (lesson, day and week items) for a date range, grouped by day, with description, learning goals, time estimate, test type, teacher note, attachments (file links), external links, hand-in window and status, and the done tick. Also lists hand-in deadlines per day. Defaults to today plus 6 days; at most 42 days.",
+        "What to do and learn on which day: every studiewijzer item (lesson, day and week items) for a date range, grouped by day, with description, learning goals, time estimate, test type, teacher note, attachments (file links), external links, hand-in window and status, and the done tick. Also lists hand-in deadlines per day. Defaults to today plus 6 days; at most 42 days." +
+        " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         ...rangeArgs("Defaults to today."),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => homeworkTool(ctx, args),
@@ -113,10 +127,11 @@ export function createServer(
     {
       title: "Assignments (hand-ins)",
       description:
-        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), late flag, description, attachments and links. status=open keeps upcoming and to-do ones. Use toekenningId with assignment_detail.",
+        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), late flag, description, attachments and links. status=open keeps upcoming and to-do ones. Use toekenningId with assignment_detail." +
+        " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         status: z.enum(["open", "all"]).optional().describe("Default all."),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => assignmentsTool(ctx, args),
@@ -127,13 +142,12 @@ export function createServer(
     {
       title: "Assignment detail",
       description:
-        "Submissions (date, status, file or link) and teacher reactions for one assignment.",
+        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl) and links, hand-in window, status, late flag and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
       inputSchema: {
-        toekenningId: z
-          .string()
-          .regex(/^\d+$/)
-          .describe("Numeric toekenningId from assignments or homework."),
-        leerlingId: leerlingArg,
+        toekenningId: numericId().describe(
+          "toekenningId from assignments (number or digit string).",
+        ),
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => assignmentDetailTool(ctx, args),
@@ -144,17 +158,17 @@ export function createServer(
     {
       title: "Study material",
       description:
-        "Studiemateriaal per subject: lesson material from the study planner (by date), year attachments by folder (file links), external links, and methods/publisher links (book fund). Without arguments: the subjects that have material, plus personal learning products when the school allows it. vak = name, abbreviation or uuid; all=true fetches every subject.",
+        "Studiemateriaal per subject: lesson material from the study planner (by date), year attachments by folder (file links), external links, and methods/publisher links (book fund). Without arguments: the subjects that have material, plus personal learning products when the school allows it. vak = name, abbreviation or uuid; all=true fetches every subject." +
+        " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
-        vak: z
-          .string()
+        vak: textOrNumber()
           .optional()
           .describe("Subject name, abbreviation or uuid."),
         all: z
           .boolean()
           .optional()
           .describe("Fetch material for every subject."),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => studyMaterialTool(ctx, args),
@@ -166,7 +180,7 @@ export function createServer(
       title: "Grades",
       description:
         "Newest progress-dossier results (capped at 30) and subject averages.",
-      inputSchema: { leerlingId: leerlingArg },
+      inputSchema: { leerlingId: leerlingArg() },
     },
     async ({ leerlingId }) => gradesTool(ctx, { leerlingId }),
   );
@@ -183,7 +197,7 @@ export function createServer(
           .enum(["voortgang", "examen"])
           .optional()
           .describe("Default voortgang."),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => gradesLatestTool(ctx, args),
@@ -200,7 +214,7 @@ export function createServer(
           .string()
           .optional()
           .describe('School year name, e.g. "2025/2026".'),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => gradesOverviewTool(ctx, args),
@@ -213,12 +227,11 @@ export function createServer(
       description:
         "Everything for one subject: every result column (tests, assignments, period and report averages, SE averages) with weights and remarks, column definitions (also not-yet-graded ones), and the parts of composite tests. Both progress and exam dossier unless dossier is set. Without vak: the list of subjects.",
       inputSchema: {
-        vak: z
-          .string()
+        vak: textOrNumber()
           .optional()
           .describe("Subject name, abbreviation or uuid."),
         dossier: z.enum(["voortgang", "examen"]).optional(),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => subjectGradesTool(ctx, args),
@@ -236,7 +249,7 @@ export function createServer(
           .int()
           .optional()
           .describe("Exam year; defaults to the latest."),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => examGradesTool(ctx, args),
@@ -253,7 +266,7 @@ export function createServer(
           .enum(["SCHOOLJAAR", "CIJFERPERIODE"])
           .optional()
           .describe("Default SCHOOLJAAR."),
-        leerlingId: leerlingArg,
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => absenceTool(ctx, args),
@@ -266,7 +279,7 @@ export function createServer(
       description:
         "Somtoday messages (berichten), read-only: newest conversations with subject, sender, date, unread flag and a preview; filter with zoek or ongelezen. Pass conversatieId for the full thread (text, sender, recipients, attachments). Never marks anything as read.",
       inputSchema: {
-        conversatieId: z.string().regex(/^\d+$/).optional(),
+        conversatieId: numericId().optional(),
         limit: z
           .number()
           .int()
@@ -335,7 +348,7 @@ export function createServer(
       description:
         "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents.",
       inputSchema: {
-        paginaId: z.number().int().optional(),
+        paginaId: numericId().transform(Number).optional(),
       },
     },
     async (args) => schoolInfoTool(ctx, args),
@@ -370,9 +383,8 @@ export function createServer(
       description:
         "Parent-evening (ouderavond) details: invitation, time slots and chosen teachers. Without id, finds invitations linked in your messages. Read-only; nothing is booked.",
       inputSchema: {
-        id: z
-          .string()
-          .regex(/^[A-Za-z0-9-]+$/)
+        id: textOrNumber()
+          .pipe(z.string().regex(/^[A-Za-z0-9-]+$/))
           .optional(),
       },
     },
