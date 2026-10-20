@@ -24,6 +24,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:coverage": "vitest run --coverage",
+    "smoke:live": "node scripts/live-smoke.mjs",
     "prepack": "npm run build"
   },
   "publishConfig": {
