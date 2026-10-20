@@ -50,7 +50,21 @@ MCP tools must stay read-only: `GET` requests to the parent-portal API only.
 
 ## Releases and publishing
 
-Maintainers merge to `main` using Conventional Commits. Release Please opens a release PR that bumps `package.json`, updates `CHANGELOG.md`, and tags a GitHub Release. Publishing to npm uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) from GitHub Actions (OIDC), with no long-lived npm token.
+Maintainers merge to `main` using Conventional Commits. Release Please opens a release PR that bumps `package.json`, updates `CHANGELOG.md`, and tags a GitHub Release (`vX.Y.Z`).
+
+The `Release Please` workflow (`.github/workflows/release-please.yml`) publishes when it creates a release (`steps.release.outputs.release_created`), and skips the publish if that version is already on npm:
+
+```bash
+npm publish --provenance --access public
+```
+
+`--provenance` requires a **public** repository. Publishing uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) for GitHub Actions, repo `barzoj/somtoday-mcp`, workflow `release-please.yml` (OIDC, `id-token: write`). There is no npm token; do not set `NODE_AUTH_TOKEN` (even empty). To publish an existing tag: `gh workflow run release-please.yml -f publish_tag=vX.Y.Z`.
+
+The trusted publisher can only be configured on a package that already exists, so the very first version is published manually by a maintainer, after which the trusted publisher is attached on npmjs.com.
+
+`.github/workflows/publish.yml` is `workflow_dispatch` only for tip-of-branch republish; tagged republishes use `release-please.yml` with `publish_tag`.
+
+Do not publish from a laptop with a long-lived token unless you are recovering from a broken trusted-publisher setup.
 
 ## Before opening a PR
 
