@@ -2,6 +2,8 @@
 
 Read-only MCP server for the Somtoday parent portal (`leerling.somtoday.nl`). Auth is the product; the tools are a thin layer on top of four GETs from `ouder-portal.openapi.yaml` (0.2.0).
 
+**Disclaimer:** This project is unofficial and is not affiliated with, endorsed by, or supported by Somtoday or Topicus. It uses the undocumented web API behind the Somtoday parent portal, so endpoints and fields can change or stop working without notice. It is provided as-is, without warranty (see [LICENSE](LICENSE)). Use it in accordance with Somtoday's terms of use and GDPR. Timetables, homework, and grades are personal data about children: keep them local, use only accounts you are entitled to, and do not harvest, share, or republish them.
+
 This is **not** the Somtoday Connect partner API. There is no client-credentials flow and nothing under `/rest/v1/connect/...`.
 
 Passwords are typed only in a headed Playwright Chromium window. No MCP tool, CLI flag, env var, or prompt accepts a password.
@@ -114,3 +116,7 @@ Record **HTTP statuses only**. Do not paste tokens, codes, or names.
 4. Call `homework` — note the GET statuses.
 5. Call `grades` — note the GET statuses.
 6. Restart the MCP server and call a tool again. The access token is memory-only, so this forces a refresh. Note the refresh POST status.
+
+## License
+
+[MIT](LICENSE)

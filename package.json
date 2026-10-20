@@ -1,14 +1,16 @@
 {
   "name": "somtoday-mcp",
   "version": "0.1.0",
-  "description": "Read-only MCP server for the Somtoday parent portal. Auth is the product.",
+  "description": "Unofficial read-only MCP server for the Somtoday parent portal",
   "type": "module",
   "bin": {
     "somtoday-mcp": "dist/cli.js"
   },
   "files": [
     "dist",
-    "ouder-portal.openapi.yaml"
+    "ouder-portal.openapi.yaml",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22"
@@ -20,12 +22,28 @@
     "test": "vitest run",
     "ci": "tsc --noEmit && vitest run"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/barzoj/somtoday-mcp.git"
+  },
   "keywords": [
     "mcp",
+    "model-context-protocol",
     "somtoday",
-    "ouderportaal"
+    "ouderportaal",
+    "school",
+    "homework",
+    "timetable",
+    "grades"
   ],
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/barzoj/somtoday-mcp/issues"
+  },
+  "homepage": "https://github.com/barzoj/somtoday-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
     "playwright": "^1.56.1",
