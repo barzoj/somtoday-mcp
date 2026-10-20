@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { createDefaultSession } from "./auth/default-session.js";
 import type { SessionManager } from "./auth/session.js";
+import { assignmentDetailTool, assignmentsTool } from "./tools/assignments.js";
 import { authStatusTool } from "./tools/auth-status.js";
 import { createToolContext } from "./tools/context.js";
 import { gradesTool } from "./tools/grades.js";
@@ -75,6 +76,37 @@ export function createServer(
       },
     },
     async (args) => homeworkTool(ctx, args),
+  );
+
+  server.registerTool(
+    "assignments",
+    {
+      title: "Assignments (hand-ins)",
+      description:
+        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), late flag, description, attachments and links. status=open keeps upcoming and to-do ones. Use toekenningId with assignment_detail.",
+      inputSchema: {
+        status: z.enum(["open", "all"]).optional().describe("Default all."),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => assignmentsTool(ctx, args),
+  );
+
+  server.registerTool(
+    "assignment_detail",
+    {
+      title: "Assignment detail",
+      description:
+        "Submissions (date, status, file or link) and teacher reactions for one assignment.",
+      inputSchema: {
+        toekenningId: z
+          .string()
+          .regex(/^\d+$/)
+          .describe("Numeric toekenningId from assignments or homework."),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => assignmentDetailTool(ctx, args),
   );
 
   server.registerTool(
