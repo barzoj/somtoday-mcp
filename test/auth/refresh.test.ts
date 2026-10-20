@@ -1,9 +1,9 @@
-import { mkdtemp, writeFile, utimes } from "node:fs/promises";
+import { mkdtemp, open, writeFile, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ApiClient } from "../../src/api/client.js";
-import { FileLock, type SessionLock } from "../../src/auth/lock.js";
+import { FileLock, isLockBusy, type SessionLock } from "../../src/auth/lock.js";
 import { MemorySecretStore } from "../../src/auth/memory-store.js";
 import { SessionManager } from "../../src/auth/session.js";
 import {
@@ -450,5 +450,47 @@ describe("file lock", () => {
     await expect(lock.withLock(async () => "never")).rejects.toThrow(
       /Timed out waiting for the session lock/,
     );
+  });
+
+  it("treats Windows EPERM/EACCES/EBUSY on create as busy and retries", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "somtoday-lock-"));
+    const path = join(dir, "session.lock");
+    for (const code of ["EPERM", "EACCES", "EBUSY"]) {
+      let failures = 2;
+      const openFile = (async (...args: Parameters<typeof open>) => {
+        if (failures > 0) {
+          failures -= 1;
+          throw Object.assign(new Error(code), { code });
+        }
+        return open(...args);
+      }) as typeof open;
+      const lock = new FileLock(path, {
+        pollMs: 1,
+        timeoutMs: 1_000,
+        platform: "win32",
+        openFile,
+      });
+      expect(await lock.withLock(async () => code)).toBe(code);
+      expect(failures).toBe(0);
+    }
+  });
+
+  it("still fails fast on a real permission error outside Windows", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "somtoday-lock-"));
+    const openFile = (async () => {
+      throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+    }) as unknown as typeof open;
+    const lock = new FileLock(join(dir, "session.lock"), {
+      platform: "linux",
+      openFile,
+    });
+    await expect(lock.withLock(async () => "x")).rejects.toThrow("EACCES");
+  });
+
+  it("classifies busy codes per platform", () => {
+    expect(isLockBusy("EEXIST", "linux")).toBe(true);
+    expect(isLockBusy("EPERM", "win32")).toBe(true);
+    expect(isLockBusy("EPERM", "darwin")).toBe(false);
+    expect(isLockBusy("ENOENT", "win32")).toBe(false);
   });
 });
