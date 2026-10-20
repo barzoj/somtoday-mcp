@@ -23,7 +23,8 @@ describe("secret stores", () => {
     const store = new FileSecretStore(path);
     await store.save(FAKE_SESSION);
     const mode = (await stat(path)).mode & 0o777;
-    expect(mode).toBe(0o600);
+    // Windows has no POSIX permission bits.
+    if (process.platform !== "win32") expect(mode).toBe(0o600);
     expect(await store.load()).toEqual(FAKE_SESSION);
   });
 
@@ -67,6 +68,7 @@ describe("secret stores", () => {
     expect(keychain).toBeNull();
     expect(await store.load()).toEqual(FAKE_SESSION);
     const mode = (await stat(fallback.path)).mode & 0o777;
-    expect(mode).toBe(0o600);
+    // Windows has no POSIX permission bits.
+    if (process.platform !== "win32") expect(mode).toBe(0o600);
   });
 });
