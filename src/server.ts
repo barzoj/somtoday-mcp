@@ -14,6 +14,7 @@ import { gradesOverviewTool } from "./tools/grades-overview.js";
 import { subjectGradesTool } from "./tools/subject-grades.js";
 import { examGradesTool } from "./tools/exam-grades.js";
 import { absenceTool } from "./tools/absence.js";
+import { messagesTool } from "./tools/messages.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -248,6 +249,34 @@ export function createServer(
       },
     },
     async (args) => absenceTool(ctx, args),
+  );
+
+  server.registerTool(
+    "messages",
+    {
+      title: "Messages",
+      description:
+        "Somtoday messages (berichten), read-only: newest conversations with subject, sender, date, unread flag and a preview; filter with zoek or ongelezen. Pass conversatieId for the full thread (text, sender, recipients, attachments). Never marks anything as read.",
+      inputSchema: {
+        conversatieId: z.string().regex(/^\d+$/).optional(),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .optional()
+          .describe("Default 25."),
+        zoek: z
+          .string()
+          .optional()
+          .describe("Search in subject, sender and preview."),
+        ongelezen: z
+          .boolean()
+          .optional()
+          .describe("Only unread conversations."),
+      },
+    },
+    async (args) => messagesTool(ctx, args),
   );
 
   server.registerTool(
