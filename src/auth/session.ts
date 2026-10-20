@@ -27,7 +27,10 @@ export class SessionManager {
     return this.cached;
   }
 
-  rememberTokens(tokens: TokenSet, extras: Pick<StoredSession, "tenantUuid" | "schoolLabel">): void {
+  rememberTokens(
+    tokens: TokenSet,
+    extras: Pick<StoredSession, "tenantUuid" | "schoolLabel">,
+  ): void {
     this.accessToken = tokens.accessToken;
     this.expiresAt = this.clock() + tokens.expiresIn * 1000;
     this.cached = {
@@ -39,7 +42,10 @@ export class SessionManager {
     };
   }
 
-  async persist(tokens: TokenSet, extras: Pick<StoredSession, "tenantUuid" | "schoolLabel">): Promise<void> {
+  async persist(
+    tokens: TokenSet,
+    extras: Pick<StoredSession, "tenantUuid" | "schoolLabel">,
+  ): Promise<void> {
     this.rememberTokens(tokens, extras);
     await this.store.save(this.cached!);
   }
@@ -107,7 +113,10 @@ export class SessionManager {
         apiBaseUrl: tokens.apiBaseUrl || stored.apiBaseUrl,
       };
       this.cached = next;
-      if (tokens.refreshToken !== stored.refreshToken || tokens.clientId !== stored.clientId) {
+      if (
+        tokens.refreshToken !== stored.refreshToken ||
+        tokens.clientId !== stored.clientId
+      ) {
         await this.store.save(next);
       }
     } catch {

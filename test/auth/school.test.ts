@@ -62,7 +62,9 @@ describe("school list", () => {
         throw new TypeError("fetch failed", { cause: new Error("ENOTFOUND") });
       },
       async () => {
-        throw new TypeError("fetch failed", { cause: new Error("ENETUNREACH") });
+        throw new TypeError("fetch failed", {
+          cause: new Error("ENETUNREACH"),
+        });
       },
     ]);
     await expect(fetchSchools(failing.fetchFn)).rejects.toThrow(
