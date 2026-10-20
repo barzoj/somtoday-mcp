@@ -13,6 +13,7 @@ import { gradesLatestTool } from "./tools/grades-latest.js";
 import { gradesOverviewTool } from "./tools/grades-overview.js";
 import { subjectGradesTool } from "./tools/subject-grades.js";
 import { examGradesTool } from "./tools/exam-grades.js";
+import { absenceTool } from "./tools/absence.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -230,6 +231,23 @@ export function createServer(
       },
     },
     async (args) => examGradesTool(ctx, args),
+  );
+
+  server.registerTool(
+    "absence",
+    {
+      title: "Absence and registrations",
+      description:
+        "Registrations for the school year (or current grading period): unexcused and excused absence, late, removed from class, homework not done, materials missing — counts and every entry with date, lesson and remark — plus active measures (e.g. detention).",
+      inputSchema: {
+        periode: z
+          .enum(["SCHOOLJAAR", "CIJFERPERIODE"])
+          .optional()
+          .describe("Default SCHOOLJAAR."),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => absenceTool(ctx, args),
   );
 
   server.registerTool(
