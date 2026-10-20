@@ -25,6 +25,10 @@ export type TokenSet = {
   apiBaseUrl: string;
   clientId: string;
   idToken?: string;
+  /** `somtoday_tenant` from the token response (school tenant UUID). */
+  tenantUuid?: string;
+  /** `orgname` claim from the id_token, when present. */
+  schoolName?: string;
 };
 
 type TokenJson = {
@@ -32,6 +36,7 @@ type TokenJson = {
   refresh_token?: string;
   expires_in?: number;
   somtoday_api_url?: string;
+  somtoday_tenant?: string;
   id_token?: string;
   error?: string;
   error_description?: string;
@@ -44,7 +49,7 @@ export function encodeForm(fields: Record<string, string>): string {
 export async function exchangeAuthorizationCode(options: {
   code: string;
   verifier: string;
-  tenantUuid: string;
+  tenantUuid?: string;
   fetchFn?: FetchFn;
 }): Promise<TokenSet> {
   const fetchFn = options.fetchFn ?? fetch;
@@ -70,7 +75,7 @@ export async function exchangeAuthorizationCode(options: {
   const retry = await postToken(fetchFn, {
     ...baseFields,
     session: SESSION_NO,
-    tenant_uuid: options.tenantUuid,
+    ...(options.tenantUuid ? { tenant_uuid: options.tenantUuid } : {}),
   });
   if (!retry.ok) {
     logError(
@@ -155,7 +160,35 @@ function readTokenSet(
     apiBaseUrl: resolveApiBaseUrl(json.somtoday_api_url),
     clientId,
     idToken: json.id_token,
+    tenantUuid: cleanString(json.somtoday_tenant),
+    schoolName: json.id_token
+      ? idTokenClaim(json.id_token, "orgname")
+      : undefined,
   };
+}
+
+function cleanString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * Read one string claim from an id_token payload. Used only for display
+ * metadata (school name); the token is not trusted for anything else.
+ */
+export function idTokenClaim(
+  idToken: string,
+  claim: string,
+): string | undefined {
+  const payload = idToken.split(".")[1];
+  if (!payload) return undefined;
+  try {
+    const json = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as Record<string, unknown>;
+    return cleanString(json[claim]);
+  } catch {
+    return undefined;
+  }
 }
 
 /**

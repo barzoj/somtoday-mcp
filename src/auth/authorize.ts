@@ -10,7 +10,8 @@ import {
 export type AuthorizeParams = {
   codeChallenge: string;
   state: string;
-  tenantUuid: string;
+  /** Omit to let Somtoday show its own school picker. */
+  tenantUuid?: string;
 };
 
 export function buildAuthorizeUrl(params: AuthorizeParams): string {
@@ -22,7 +23,9 @@ export function buildAuthorizeUrl(params: AuthorizeParams): string {
   url.searchParams.set("code_challenge", params.codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("state", params.state);
-  url.searchParams.set("tenant_uuid", params.tenantUuid);
+  if (params.tenantUuid) {
+    url.searchParams.set("tenant_uuid", params.tenantUuid);
+  }
   url.searchParams.set("session", SESSION_NO);
   url.searchParams.set("claims", CLAIMS);
   return url.toString();

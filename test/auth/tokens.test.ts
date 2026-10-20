@@ -9,28 +9,12 @@ import {
 import {
   NATIVE_CLIENT_ID,
   REDIRECT_URI,
-  SCHOOLS_URL,
   TOKEN_URL,
 } from "../../src/constants.js";
 import { FAKE_JWT, formBody, jsonResponse, scriptedFetch } from "../helpers.js";
 
-const schoolsPayload = [
-  {
-    instellingen: [
-      {
-        uuid: "11111111-1111-4111-8111-111111111111",
-        naam: "Fixture College",
-        plaats: "TESTSTAD",
-      },
-    ],
-  },
-];
-
 function loginIo() {
-  return {
-    ask: async () => "Fixture College",
-    write: () => undefined,
-  };
+  return { write: () => undefined };
 }
 
 describe("token exchange", () => {
@@ -69,12 +53,7 @@ describe("token exchange", () => {
   });
 
   it("does not call the token endpoint when state mismatches", async () => {
-    const { fetchFn, calls } = scriptedFetch([
-      async (url) => {
-        expect(url).toBe(SCHOOLS_URL);
-        return jsonResponse(200, schoolsPayload);
-      },
-    ]);
+    const { fetchFn, calls } = scriptedFetch([]);
     const session = new SessionManager(new MemorySecretStore(), fetchFn);
     await expect(
       runLogin({
@@ -89,12 +68,7 @@ describe("token exchange", () => {
   });
 
   it("does not call the token endpoint when code is missing", async () => {
-    const { fetchFn, calls } = scriptedFetch([
-      async (url) => {
-        expect(url).toBe(SCHOOLS_URL);
-        return jsonResponse(200, schoolsPayload);
-      },
-    ]);
+    const { fetchFn, calls } = scriptedFetch([]);
     const session = new SessionManager(new MemorySecretStore(), fetchFn);
     await expect(
       runLogin({

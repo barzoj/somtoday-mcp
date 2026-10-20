@@ -1,7 +1,8 @@
 export type StoredSession = {
   refreshToken: string;
   clientId: string;
-  tenantUuid: string;
+  /** Unknown when the school was picked in Somtoday's own login page and the token response had no tenant. */
+  tenantUuid?: string;
   apiBaseUrl: string;
   schoolLabel: string;
 };
@@ -53,18 +54,20 @@ export function parseStoredSession(raw: string): StoredSession {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("not a JSON object");
   }
-  const missing = (
-    ["refreshToken", "clientId", "tenantUuid", "apiBaseUrl"] as const
-  ).filter((key) => typeof parsed[key] !== "string" || !parsed[key]);
+  const missing = (["refreshToken", "clientId", "apiBaseUrl"] as const).filter(
+    (key) => typeof parsed[key] !== "string" || !parsed[key],
+  );
   if (missing.length > 0) {
     throw new Error(`missing fields: ${missing.join(", ")}`);
   }
   return {
     refreshToken: parsed.refreshToken!,
     clientId: parsed.clientId!,
-    tenantUuid: parsed.tenantUuid!,
+    ...(typeof parsed.tenantUuid === "string" && parsed.tenantUuid
+      ? { tenantUuid: parsed.tenantUuid }
+      : {}),
     apiBaseUrl: parsed.apiBaseUrl!,
-    schoolLabel: parsed.schoolLabel || parsed.tenantUuid!,
+    schoolLabel: parsed.schoolLabel || parsed.tenantUuid || "Somtoday",
   };
 }
 
