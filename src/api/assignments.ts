@@ -5,6 +5,7 @@ import { handInQuery } from "./homework.js";
 import { linkId } from "./simplify.js";
 import {
   compact,
+  compactItem,
   mapAttachment,
   mapStudiewijzerItem,
   type AttachmentView,
@@ -69,7 +70,7 @@ export async function fetchAssignments(
         ({ raw, view }) =>
           !(raw.studiewijzerItem?.projectgroepen && !view.projectgroep),
       )
-      .map(({ view }) => compact({ ...view, ...categorize(view, now) }))
+      .map(({ view }) => compactItem({ ...view, ...categorize(view, now) }))
       .sort((a, b) =>
         (a.inlevermoment?.eind ?? "").localeCompare(
           b.inlevermoment?.eind ?? "",

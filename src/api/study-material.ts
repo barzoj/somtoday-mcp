@@ -3,6 +3,7 @@ import type { ApiClient } from "./client.js";
 import { linkId } from "./simplify.js";
 import {
   compact,
+  compactItem,
   mapAttachment,
   mapLink,
   mapStudiewijzerItem,
@@ -116,7 +117,9 @@ export async function fetchSubjectMaterial(
     vak,
     lesstof: (body.lesstof ?? [])
       .filter((raw) => raw.studiewijzerItem)
-      .map((raw) => compact(mapStudiewijzerItem(raw, leerlingId, amsterdamYmd)))
+      .map((raw) =>
+        compactItem(mapStudiewijzerItem(raw, leerlingId, amsterdamYmd)),
+      )
       .sort(
         (a, b) =>
           (a.datumTijd ?? "").localeCompare(b.datumTijd ?? "") ||

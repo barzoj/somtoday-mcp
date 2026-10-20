@@ -111,12 +111,47 @@ async function call(name, args) {
         ? ` not-available(${parsed.status ?? "-"})`
         : "";
     console.log(
-      `✓ ${name} (${ms} ms)${avail} ${JSON.stringify(shape(parsed))}`,
+      `✓ ${name} (${ms} ms)${avail} fileUrls=${countFileUrls(parsed)} ${JSON.stringify(shape(parsed))}`,
     );
     return parsed;
   } catch (error) {
     console.log(`✗ ${name} threw: ${scrub(error?.message ?? error)}`);
     return undefined;
+  }
+}
+
+function countFileUrls(value, depth = 0) {
+  if (depth > 12 || value === null || typeof value !== "object") return 0;
+  let total = 0;
+  for (const [key, inner] of Object.entries(value)) {
+    if (key === "fileUrl" && typeof inner === "string") total += 1;
+    total += countFileUrls(inner, depth + 1);
+  }
+  return total;
+}
+
+function amsterdamDay(offsetDays = 0) {
+  const date = new Date(Date.now() + offsetDays * 86_400_000);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Amsterdam",
+  }).format(date);
+}
+
+// Look wider for attachments before trying download_attachment: six weeks of
+// homework back from today, and every assignment. Prints counts only.
+async function searchAttachments() {
+  const searches = [
+    ["homework", { from: amsterdamDay(-41), to: amsterdamDay(0) }],
+    ["assignments", { status: "all" }],
+  ];
+  for (const [name, args] of searches) {
+    const parsed = await call(name, {
+      ...(leerling ? { leerlingId: leerling } : {}),
+      ...args,
+    });
+    console.log(
+      `  fileUrl count in ${name} ${JSON.stringify(Object.keys(args))}: ${countFileUrls(parsed)}`,
+    );
   }
 }
 
@@ -152,12 +187,16 @@ for (const tool of ordered) {
       paginaId: found.get("paginaId"),
     });
   }
+  if (tool.name === "download_attachment") {
+    await searchAttachments();
+  }
   const derived = DERIVED[tool.name];
   if (derived?.key && derived.arg in props) {
     if (found.has(derived.key)) {
       await call(tool.name, {
         ...base(tool),
-        [derived.arg]: String(found.get(derived.key)),
+        // Passed as-is (numbers stay numbers), like an MCP client would.
+        [derived.arg]: found.get(derived.key),
       });
     } else {
       console.log(
