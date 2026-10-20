@@ -9,6 +9,7 @@ import { createToolContext } from "./tools/context.js";
 import { gradesTool } from "./tools/grades.js";
 import { homeworkTool } from "./tools/homework.js";
 import { lessonsTool } from "./tools/lessons.js";
+import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
 import { packageVersion } from "./packageVersion.js";
 
@@ -107,6 +108,27 @@ export function createServer(
       },
     },
     async (args) => assignmentDetailTool(ctx, args),
+  );
+
+  server.registerTool(
+    "study_material",
+    {
+      title: "Study material",
+      description:
+        "Studiemateriaal per subject: lesson material from the study planner (by date), year attachments by folder (file links), external links, and methods/publisher links (book fund). Without arguments: the subjects that have material, plus personal learning products when the school allows it. vak = name, abbreviation or uuid; all=true fetches every subject.",
+      inputSchema: {
+        vak: z
+          .string()
+          .optional()
+          .describe("Subject name, abbreviation or uuid."),
+        all: z
+          .boolean()
+          .optional()
+          .describe("Fetch material for every subject."),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => studyMaterialTool(ctx, args),
   );
 
   server.registerTool(
