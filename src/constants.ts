@@ -61,3 +61,10 @@ export const GRADE_ADDITIONALS = [
 
 export const GRADE_SORT = "desc-geldendResultaatCijferInvoer";
 export const GRADE_CAP = 30;
+
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const ATTACHMENT_MAX_TEXT = 100_000;
+export const ATTACHMENT_TIMEOUT_MS = 30_000;
+export const ATTACHMENT_MAX_REDIRECTS = 5;
+/** Extra attachment hosts (comma-separated, exact host or `.suffix`), e.g. a school's file CDN. */
+export const ATTACHMENT_HOSTS_ENV = "SOMTODAY_MCP_ATTACHMENT_HOSTS";

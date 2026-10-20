@@ -7,6 +7,8 @@ import { errorResult, type ToolResult } from "./result.js";
 export type ToolContext = {
   session: SessionManager;
   client: ApiClient;
+  /** Plain fetch for attachment downloads (never carries the bearer token). */
+  fetchFn: typeof fetch;
 };
 
 export function createToolContext(
@@ -16,6 +18,7 @@ export function createToolContext(
   return {
     session,
     client: new ApiClient(session, fetchFn),
+    fetchFn,
   };
 }
 

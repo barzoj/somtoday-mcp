@@ -132,7 +132,11 @@ const ordered = [...tools].sort(
 );
 for (const tool of ordered) {
   if (SKIP.has(tool.name) || (only.size && !only.has(tool.name))) continue;
-  await call(tool.name, base(tool));
+  const required = tool.inputSchema?.required ?? [];
+  // Tools with required arguments only run in the derived pass below.
+  if (required.every((key) => key === "leerlingId" && leerling)) {
+    await call(tool.name, base(tool));
+  }
   const props = tool.inputSchema?.properties ?? {};
   // Second pass with a derived argument, when the tool takes one.
   if (tool.name === "study_material" && "all" in props) {

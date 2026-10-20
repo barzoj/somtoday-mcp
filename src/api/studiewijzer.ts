@@ -90,7 +90,7 @@ type RawProjectgroep = {
   projectgroepnaam?: string;
 };
 
-/** Attachment as returned by every tool. `fileUrl` is a link; nothing is downloaded. */
+/** Attachment as returned by every tool. `fileUrl` is a link; read it with `download_attachment`. */
 export type AttachmentView = {
   naam: string;
   fileName?: string;
