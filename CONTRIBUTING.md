@@ -13,6 +13,7 @@ npm run format:check
 npm run typecheck
 npm run build
 npm test
+npm run test:coverage
 ```
 
 Format locally with `npm run format`.
@@ -59,4 +60,5 @@ npm run format:check
 npm run typecheck
 npm run build
 npm test
+npm run test:coverage
 ```
