@@ -154,10 +154,10 @@ rm ~/.config/somtoday-mcp/session.json             # file fallback
 
 ### Environment variables
 
-| Variable          | Effect                                                      |
-| ----------------- | ----------------------------------------------------------- |
-| `XDG_CONFIG_HOME` | Base directory for the file fallback (default `~/.config`). |
-| `SOMTODAY_MCP_CONFIG_DIR` | Use this directory instead of `$XDG_CONFIG_HOME/somtoday-mcp`. |
+| Variable                        | Effect                                                         |
+| ------------------------------- | -------------------------------------------------------------- |
+| `XDG_CONFIG_HOME`               | Base directory for the file fallback (default `~/.config`).    |
+| `SOMTODAY_MCP_CONFIG_DIR`       | Use this directory instead of `$XDG_CONFIG_HOME/somtoday-mcp`. |
 | `SOMTODAY_MCP_DISABLE_KEYCHAIN` | Set to `1` to skip the macOS Keychain and always use the file. |
 
 Logs go to stderr (stdout is reserved for the MCP protocol) and redact token-like values.
