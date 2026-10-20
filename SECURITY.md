@@ -12,7 +12,7 @@ Do not send vulnerability reports to a personal email address.
 
 - Never paste access tokens, refresh tokens, authorization codes, `code_verifier` values, or session files into GitHub issues, PRs, logs, screenshots, or chat transcripts.
 - Access tokens are kept in memory only.
-- On macOS, the refresh token and session metadata are stored in the user's login Keychain (service `somtoday-mcp`) through `/usr/bin/security`.
+- On macOS, the refresh token and session metadata are stored in the user's login Keychain (service `somtoday-mcp`) through `/usr/bin/security`. The value is passed hex-encoded on stdin (`security -i`), never on the command line, and every write is read back and verified.
 - Elsewhere, or when the keychain is unavailable, the session falls back to `session.json` with `0600` permissions under `$XDG_CONFIG_HOME/somtoday-mcp/` (default `~/.config/somtoday-mcp/`).
 - Logs redact JWT-shaped strings and fields named `code`, `code_verifier`, `access_token`, `refresh_token`, `id_token`.
 

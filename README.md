@@ -140,10 +140,10 @@ Run login again in that case. Session renewal is still being improved, so for no
 
 ### Where the session is stored
 
-| Platform        | Location                                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------------------- |
-| macOS           | Login Keychain, service `somtoday-mcp` (falls back to the file below if the keychain cannot be used)           |
-| Linux / Windows | `session.json` with `0600` permissions in `$XDG_CONFIG_HOME/somtoday-mcp/` (default `~/.config/somtoday-mcp/`) |
+| Platform        | Location                                                                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS           | Login Keychain, service `somtoday-mcp`. Every write is read back and checked; if that fails, or `SOMTODAY_MCP_DISABLE_KEYCHAIN=1` is set, the file below is used |
+| Linux / Windows | `session.json` with `0600` permissions in `$XDG_CONFIG_HOME/somtoday-mcp/` (default `~/.config/somtoday-mcp/`)                                                   |
 
 To sign out, delete the stored session:
 
@@ -154,9 +154,11 @@ rm ~/.config/somtoday-mcp/session.json             # file fallback
 
 ### Environment variables
 
-| Variable          | Effect                                                      |
-| ----------------- | ----------------------------------------------------------- |
-| `XDG_CONFIG_HOME` | Base directory for the file fallback (default `~/.config`). |
+| Variable                        | Effect                                                         |
+| ------------------------------- | -------------------------------------------------------------- |
+| `XDG_CONFIG_HOME`               | Base directory for the file fallback (default `~/.config`).    |
+| `SOMTODAY_MCP_CONFIG_DIR`       | Use this directory instead of `$XDG_CONFIG_HOME/somtoday-mcp`. |
+| `SOMTODAY_MCP_DISABLE_KEYCHAIN` | Set to `1` to skip the macOS Keychain and always use the file. |
 
 Logs go to stderr (stdout is reserved for the MCP protocol) and redact token-like values.
 
