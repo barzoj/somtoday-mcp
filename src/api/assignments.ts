@@ -102,6 +102,24 @@ type RawBoodschap = {
   };
 };
 
+/**
+ * One assignment from exactly the list `assignments` returns (same request,
+ * all Range pages, same mapping and filter). Ids are compared as strings.
+ */
+export async function findAssignment(
+  client: ApiClient,
+  leerlingId: number,
+  toekenningId: string | number,
+  now: Date,
+): Promise<{ item?: AssignmentView; total: number }> {
+  const all = await fetchAssignments(client, leerlingId, now);
+  const wanted = String(toekenningId).trim();
+  return {
+    item: all.find((entry) => String(entry.toekenningId) === wanted),
+    total: all.length,
+  };
+}
+
 type RawInleverDetails = {
   aantalInleveringenInVerwerking?: number;
   inleveringen?: RawInlevering[];

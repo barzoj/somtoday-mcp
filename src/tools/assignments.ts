@@ -1,4 +1,4 @@
-import { fetchAssignments } from "../api/assignments.js";
+import { fetchAssignments, findAssignment } from "../api/assignments.js";
 import { childTool } from "./child-tool.js";
 import type { ToolContext } from "./context.js";
 import type { ToolResult } from "./result.js";
@@ -43,21 +43,25 @@ export async function assignmentDetailTool(
     args.leerlingId,
     "huiswerkBekijkenAan",
     async (child) => {
-      const id = Number(args.toekenningId);
-      if (!Number.isInteger(id) || id <= 0) {
+      const id = String(args.toekenningId).trim();
+      if (!/^\d+$/.test(id)) {
         throw new Error(
           "toekenningId must be the numeric id from `assignments`",
         );
       }
-      const all = await fetchAssignments(ctx.client, child.leerlingId, now);
-      const opdracht = all.find((item) => item.toekenningId === id);
+      const { item: opdracht, total } = await findAssignment(
+        ctx.client,
+        child.leerlingId,
+        id,
+        now,
+      );
       if (!opdracht) {
         throw new Error(
-          `No hand-in assignment with toekenningId ${id}. Use a toekenningId from \`assignments\`; homework items that are not hand-ins already contain all their details.`,
+          `No hand-in assignment with toekenningId ${id} among the ${total} from \`assignments\`. Homework items (lesson/day/week toekenningen) are not hand-ins and already contain all their details.`,
         );
       }
       return {
-        toekenningId: id,
+        toekenningId: opdracht.toekenningId,
         opdracht,
         inleveringen: {
           available: false,

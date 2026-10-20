@@ -222,3 +222,54 @@ describe("assignment_detail (parent view)", () => {
     expect(result.isError).toBe(true);
   });
 });
+
+describe("assignments → assignment_detail round trip", () => {
+  // 150 dag hand-ins served in Range pages of 100, like the API.
+  const all = Array.from({ length: 150 }, (_, index) =>
+    handIn(
+      1000 + index,
+      "2026-10-01T06:00:00Z",
+      // later items have earlier deadlines, so sorting moves them to the front
+      `2026-12-${String(28 - Math.floor(index / 6)).padStart(2, "0")}T21:59:00Z`,
+    ),
+  );
+  const paged = (_url: URL, init?: RequestInit) => {
+    const range = new Headers(init?.headers).get("range") ?? "items=0-99";
+    const [start, end] = range.replace("items=", "").split("-").map(Number);
+    const page = all.slice(start, Math.min(end! + 1, all.length));
+    return jsonResponse(
+      206,
+      { items: page },
+      {
+        "content-range": `items ${start}-${start! + page.length - 1}/${all.length}`,
+      },
+    );
+  };
+
+  it("resolves the first (and last) id of the assignments output, as number or string", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/, paged],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const list = toolJson(await assignmentsTool(ctx, {}, NOW)) as {
+      total: number;
+      items: Array<{ toekenningId: number }>;
+    };
+    expect(list.total).toBe(150);
+    const first = list.items[0]!.toekenningId;
+    const last = list.items.at(-1)!.toekenningId;
+    for (const id of [first, String(first), ` ${last}`]) {
+      const result = await assignmentDetailTool(
+        ctx,
+        { toekenningId: id as string },
+        NOW,
+      );
+      expect(result.isError, String(id)).toBeFalsy();
+      expect(
+        (toolJson(result) as { opdracht: { toekenningId: number } }).opdracht
+          .toekenningId,
+      ).toBe(Number(String(id).trim()));
+    }
+  });
+});
