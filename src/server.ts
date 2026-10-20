@@ -16,6 +16,7 @@ import { examGradesTool } from "./tools/exam-grades.js";
 import { absenceTool } from "./tools/absence.js";
 import { messagesTool } from "./tools/messages.js";
 import { announcementsTool, newsTool } from "./tools/news.js";
+import { childrenTool, schoolInfoTool, teachersTool } from "./tools/profile.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -308,6 +309,41 @@ export function createServer(
       inputSchema: {},
     },
     async () => announcementsTool(ctx),
+  );
+
+  server.registerTool(
+    "children",
+    {
+      title: "Children",
+      description:
+        "Linked children with profile (name, student number, class), school data (school, location, mentor(s), year, programme), current placement, and which portal sections the school shows.",
+      inputSchema: {},
+    },
+    async () => childrenTool(ctx),
+  );
+
+  server.registerTool(
+    "school_info",
+    {
+      title: "School information",
+      description:
+        "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents.",
+      inputSchema: {
+        paginaId: z.number().int().optional(),
+      },
+    },
+    async (args) => schoolInfoTool(ctx, args),
+  );
+
+  server.registerTool(
+    "teachers",
+    {
+      title: "Teachers",
+      description:
+        "Staff you can message, with the subjects they teach your child.",
+      inputSchema: {},
+    },
+    async () => teachersTool(ctx),
   );
 
   server.registerTool(
