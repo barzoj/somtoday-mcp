@@ -8,6 +8,7 @@ import { gradesTool } from "./tools/grades.js";
 import { homeworkTool } from "./tools/homework.js";
 import { lessonsTool } from "./tools/lessons.js";
 import { whoamiTool } from "./tools/whoami.js";
+import { packageVersion } from "./packageVersion.js";
 
 const dateArg = z
   .string()
@@ -28,7 +29,7 @@ export function createServer(
   const ctx = createToolContext(session);
   const server = new McpServer({
     name: "somtoday",
-    version: "0.1.0",
+    version: packageVersion(),
   });
 
   server.registerTool(
