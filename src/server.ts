@@ -9,6 +9,7 @@ import { createToolContext } from "./tools/context.js";
 import { gradesTool } from "./tools/grades.js";
 import { homeworkTool } from "./tools/homework.js";
 import { lessonsTool } from "./tools/lessons.js";
+import { gradesLatestTool } from "./tools/grades-latest.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -155,6 +156,24 @@ export function createServer(
       inputSchema: { leerlingId: leerlingArg },
     },
     async ({ leerlingId }) => gradesTool(ctx, { leerlingId }),
+  );
+
+  server.registerTool(
+    "grades_latest",
+    {
+      title: "Latest grades",
+      description:
+        "Newest results first, with subject, column, description, grade, weight, test type, period, date, remarks and resit info. limit defaults to 50 (max 1000, paged). dossier=examen gives school-exam (SE) results. Also the next publication moment when the school uses one.",
+      inputSchema: {
+        limit: z.number().int().min(1).max(1000).optional(),
+        dossier: z
+          .enum(["voortgang", "examen"])
+          .optional()
+          .describe("Default voortgang."),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => gradesLatestTool(ctx, args),
   );
 
   server.registerTool(
