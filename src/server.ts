@@ -408,7 +408,7 @@ export function createServer(
       title: "Download attachment",
       description:
         "Read an attachment (fileUrl from homework, assignments, study material or messages). Only https Somtoday file hosts; max 10 MB; returns extracted text for PDF/text/HTML/CSV/JSON, metadata otherwise.",
-      inputSchema: { url: z.string().url() },
+      inputSchema: { url: z.url() },
     },
     async (args) => downloadAttachmentTool(ctx, args),
   );

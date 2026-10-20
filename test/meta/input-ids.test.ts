@@ -57,3 +57,24 @@ describe("tool schemas", () => {
     }
   });
 });
+
+describe("download_attachment input (zod 4)", () => {
+  it("advertises a URI string and rejects non-URLs before any fetch", async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const schema = tools.find((tool) => tool.name === "download_attachment")
+      ?.inputSchema as unknown as {
+      properties: { url: Record<string, unknown> };
+    };
+    expect(schema.properties.url).toMatchObject({
+      type: "string",
+      format: "uri",
+    });
+    const result = await client.callTool({
+      name: "download_attachment",
+      arguments: { url: "not a url" },
+    });
+    expect(result.isError).toBe(true);
+    expect(text(result)).toMatch(/Input validation error/);
+  });
+});
