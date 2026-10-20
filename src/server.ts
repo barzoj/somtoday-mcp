@@ -17,6 +17,11 @@ import { absenceTool } from "./tools/absence.js";
 import { messagesTool } from "./tools/messages.js";
 import { announcementsTool, newsTool } from "./tools/news.js";
 import { childrenTool, schoolInfoTool, teachersTool } from "./tools/profile.js";
+import {
+  consentsTool,
+  parentEveningTool,
+  signingRequestsTool,
+} from "./tools/misc.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -344,6 +349,44 @@ export function createServer(
       inputSchema: {},
     },
     async () => teachersTool(ctx),
+  );
+
+  server.registerTool(
+    "signing_requests",
+    {
+      title: "Signing requests",
+      description:
+        "Digital signing requests (ondertekenverzoeken) waiting for you or done. Read-only; nothing is signed.",
+      inputSchema: {},
+    },
+    async () => signingRequestsTool(ctx),
+  );
+
+  server.registerTool(
+    "parent_evening",
+    {
+      title: "Parent evening",
+      description:
+        "Parent-evening (ouderavond) details: invitation, time slots and chosen teachers. Without id, finds invitations linked in your messages. Read-only; nothing is booked.",
+      inputSchema: {
+        id: z
+          .string()
+          .regex(/^[A-Za-z0-9-]+$/)
+          .optional(),
+      },
+    },
+    async (args) => parentEveningTool(ctx, args),
+  );
+
+  server.registerTool(
+    "consents",
+    {
+      title: "Consents",
+      description:
+        "Consents (toestemmingen, e.g. use of photos) as set in the portal. Read-only.",
+      inputSchema: {},
+    },
+    async () => consentsTool(ctx),
   );
 
   server.registerTool(
