@@ -1,4 +1,5 @@
 import { SCHOOLS_MIRROR_URL, SCHOOLS_URL } from "../constants.js";
+import { userAgent } from "../packageVersion.js";
 import { formatError } from "../errors.js";
 
 export type School = {
@@ -53,7 +54,7 @@ export async function fetchSchools(
       const response = await fetchFn(url, {
         headers: {
           Accept: "application/json",
-          "User-Agent": "somtoday-mcp/0.1.0",
+          "User-Agent": userAgent(),
         },
         // The official host now 301s into a Cloudflare login challenge.
         redirect: url === SCHOOLS_URL ? "manual" : "follow",
