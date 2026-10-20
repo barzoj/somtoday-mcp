@@ -191,3 +191,19 @@ describe("helpers", () => {
     expect(session.schoolLabel).toBe("Somtoday");
   });
 });
+
+describe("login timeout", () => {
+  it("allows 10 minutes and names it in the error", async () => {
+    const { LOGIN_TIMEOUT_MS } = await import("../../src/constants.js");
+    expect(LOGIN_TIMEOUT_MS).toBe(10 * 60 * 1000);
+    const source = await import("node:fs").then((fs) =>
+      fs.readFileSync(
+        new URL("../../src/auth/login.ts", import.meta.url),
+        "utf8",
+      ),
+    );
+    expect(source).toContain(
+      "Login timed out after ${LOGIN_TIMEOUT_MS / 60_000} minutes",
+    );
+  });
+});

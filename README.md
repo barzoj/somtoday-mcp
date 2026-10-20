@@ -68,11 +68,13 @@ npx -y somtoday-mcp            # start the MCP server (used by your MCP client)
 npx -y somtoday-mcp login      # sign in, once, in a terminal
 ```
 
-Login uses Playwright's Chromium. Install it once:
+Login opens a normal browser window. When **Google Chrome** (or else **Microsoft Edge**) is installed, that browser is used, with a fresh temporary profile that is deleted afterwards; it passes Somtoday's Cloudflare "Verify you are human" check more reliably. Only without Chrome/Edge does it fall back to Playwright's bundled Chromium; install that once in that case:
 
 ```bash
 npx playwright install chromium
 ```
+
+The window is started without the "controlled by automated software" markers; nothing else about the browser is changed.
 
 From a checkout:
 
@@ -81,7 +83,7 @@ git clone https://github.com/barzoj/somtoday-mcp.git
 cd somtoday-mcp
 npm install
 npm run build
-npx playwright install chromium
+npx playwright install chromium   # only needed without Chrome/Edge
 node dist/cli.js login
 ```
 
@@ -138,8 +140,8 @@ Run login in a terminal, not from inside your MCP client:
 npx -y somtoday-mcp login
 ```
 
-1. A Chromium window opens on the regular Somtoday login page. Search for your school there, the same way as in the official app.
-2. Sign in as you normally would, including any two-step verification. You have 5 minutes.
+1. A browser window (your installed Chrome or Edge, else Playwright Chromium) opens on the regular Somtoday login page. Search for your school there, the same way as in the official app.
+2. Sign in as you normally would, including any two-step verification. You have 10 minutes (the Cloudflare check and school search count too).
 3. When the window closes, the session is saved on your computer and the MCP server can use it.
 
 If you know your school's tenant UUID you can skip the school search with `npx -y somtoday-mcp login --school-uuid <uuid>`.

@@ -25,7 +25,7 @@ const DERIVED = {
   subject_grades: { from: "grades_overview", key: "vakUuid", arg: "vak" },
   school_info: { from: "school_info", key: null, arg: null },
   download_attachment: {
-    from: "study_material_all",
+    from: "*", // any earlier output
     key: "fileUrl",
     arg: "url",
   },
@@ -37,21 +37,23 @@ await server.connect(serverTransport);
 const client = new Client({ name: "live-smoke", version: "0" });
 await client.connect(clientTransport);
 
-const found = new Map(); // key -> first value seen (kept in memory only)
+// Per tool: key -> first value seen in that tool's output (memory only).
+// A detail call must use an id from its own source tool: homework also has
+// toekenningIds, but those are lesson/day items, not hand-in assignments.
+const foundByTool = new Map();
+const found = new Map(); // any tool, used for fileUrl/paginaId
 const hosts = new Set();
 
-function remember(value, depth = 0) {
+function remember(value, into, depth = 0) {
   if (depth > 10 || value === null || typeof value !== "object") return;
   if (Array.isArray(value)) {
-    for (const item of value) remember(item, depth + 1);
+    for (const item of value) remember(item, into, depth + 1);
     return;
   }
   for (const [key, inner] of Object.entries(value)) {
-    if (
-      (typeof inner === "string" || typeof inner === "number") &&
-      !found.has(key)
-    ) {
-      found.set(key, inner);
+    if (typeof inner === "string" || typeof inner === "number") {
+      if (!found.has(key)) found.set(key, inner);
+      if (!into.has(key)) into.set(key, inner);
     }
     if (
       (key === "fileUrl" || key === "url" || key === "uri") &&
@@ -63,7 +65,7 @@ function remember(value, depth = 0) {
         // not a URL
       }
     }
-    remember(inner, depth + 1);
+    remember(inner, into, depth + 1);
   }
 }
 
@@ -105,18 +107,54 @@ async function call(name, args) {
       console.log(`? ${name} (${ms} ms) non-JSON output, ${text.length} chars`);
       return undefined;
     }
-    remember(parsed);
+    if (!foundByTool.has(name)) foundByTool.set(name, new Map());
+    remember(parsed, foundByTool.get(name));
     const avail =
       parsed?.available === false
         ? ` not-available(${parsed.status ?? "-"})`
         : "";
     console.log(
-      `✓ ${name} (${ms} ms)${avail} ${JSON.stringify(shape(parsed))}`,
+      `✓ ${name} (${ms} ms)${avail} fileUrls=${countFileUrls(parsed)} ${JSON.stringify(shape(parsed))}`,
     );
     return parsed;
   } catch (error) {
     console.log(`✗ ${name} threw: ${scrub(error?.message ?? error)}`);
     return undefined;
+  }
+}
+
+function countFileUrls(value, depth = 0) {
+  if (depth > 12 || value === null || typeof value !== "object") return 0;
+  let total = 0;
+  for (const [key, inner] of Object.entries(value)) {
+    if (key === "fileUrl" && typeof inner === "string") total += 1;
+    total += countFileUrls(inner, depth + 1);
+  }
+  return total;
+}
+
+function amsterdamDay(offsetDays = 0) {
+  const date = new Date(Date.now() + offsetDays * 86_400_000);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Amsterdam",
+  }).format(date);
+}
+
+// Look wider for attachments before trying download_attachment: six weeks of
+// homework back from today, and every assignment. Prints counts only.
+async function searchAttachments() {
+  const searches = [
+    ["homework", { from: amsterdamDay(-41), to: amsterdamDay(0) }],
+    ["assignments", { status: "all" }],
+  ];
+  for (const [name, args] of searches) {
+    const parsed = await call(name, {
+      ...(leerling ? { leerlingId: leerling } : {}),
+      ...args,
+    });
+    console.log(
+      `  fileUrl count in ${name} ${JSON.stringify(Object.keys(args))}: ${countFileUrls(parsed)}`,
+    );
   }
 }
 
@@ -152,16 +190,29 @@ for (const tool of ordered) {
       paginaId: found.get("paginaId"),
     });
   }
+  if (tool.name === "download_attachment") {
+    await searchAttachments();
+  }
   const derived = DERIVED[tool.name];
   if (derived?.key && derived.arg in props) {
-    if (found.has(derived.key)) {
+    if (derived.from !== "*" && !foundByTool.has(derived.from)) {
+      // Source tool was filtered out on the command line: run it first.
+      const source = tools.find((entry) => entry.name === derived.from);
+      if (source) await call(source.name, base(source));
+    }
+    const pool =
+      derived.from === "*"
+        ? found
+        : (foundByTool.get(derived.from) ?? new Map());
+    if (pool.has(derived.key)) {
       await call(tool.name, {
         ...base(tool),
-        [derived.arg]: String(found.get(derived.key)),
+        // Passed as-is (numbers stay numbers), like an MCP client would.
+        [derived.arg]: pool.get(derived.key),
       });
     } else {
       console.log(
-        `- ${tool.name}: no ${derived.key} found in earlier output, skipped the detail call`,
+        `- ${tool.name}: no ${derived.key} found in ${derived.from === "*" ? "earlier" : derived.from} output, skipped the detail call`,
       );
     }
   }

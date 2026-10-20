@@ -256,3 +256,18 @@ export function compact<T extends object>(value: T): T {
     ),
   ) as T;
 }
+
+/**
+ * Like `compact`, but always keeps `bijlagen` and `externeMaterialen` so an
+ * empty list visibly means "no files/links" (the portal has no other call
+ * for an item's material; `lesmateriaal` is only a flag).
+ */
+export function compactItem<
+  T extends Pick<StudiewijzerItemView, "bijlagen" | "externeMaterialen">,
+>(value: T): T {
+  return {
+    ...compact(value),
+    bijlagen: value.bijlagen,
+    externeMaterialen: value.externeMaterialen,
+  };
+}

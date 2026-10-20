@@ -8,7 +8,7 @@ import {
   sameAmsterdamDate,
 } from "../dates.js";
 import {
-  compact,
+  compactItem,
   mapStudiewijzerItem,
   type RawToekenning,
   type StudiewijzerItemView,
@@ -219,7 +219,7 @@ export async function fetchHomeworkRange(
   );
 
   const map = (raw: RawToekenning) =>
-    compact(mapStudiewijzerItem(raw, leerlingId, amsterdamYmd));
+    compactItem(mapStudiewijzerItem(raw, leerlingId, amsterdamYmd));
   const seen = new Set<string>();
   const dated = perWeek
     .flatMap((entry) => entry.dated)

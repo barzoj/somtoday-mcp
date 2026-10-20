@@ -1,6 +1,6 @@
+import { launchLoginBrowser } from "./browser.js";
 import { API_PREFIX, LOGIN_TIMEOUT_MS } from "../constants.js";
 import { AuthFlowError } from "../errors.js";
-import { logError } from "../log.js";
 import { userAgent } from "../packageVersion.js";
 import {
   challengeFromVerifier,
@@ -61,10 +61,12 @@ async function loginWithIo(options: {
 
   io.write(
     schoolUuid
-      ? "Opening a headed Chromium window. Type your password there, not here."
-      : "Opening a headed Chromium window. Search for your school and sign in there; never type your password here.",
+      ? "Opening a browser window. Type your password there, not here."
+      : "Opening a browser window. Search for your school and sign in there; never type your password here.",
   );
-  io.write("If Chromium is missing: npx playwright install chromium");
+  io.write(
+    "Uses your installed Google Chrome or Edge when present, otherwise Playwright Chromium (npx playwright install chromium).",
+  );
 
   const capture = options.captureRedirect ?? captureWithPlaywright;
   let redirectUrl: string;
@@ -149,14 +151,17 @@ function wipe(value: string): void {
 export async function captureWithPlaywright(
   authorizeUrl: string,
 ): Promise<string> {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: false });
-  const page = await browser.newPage();
+  const browser = await launchLoginBrowser();
+  const page = browser.page;
 
   try {
     const redirect = new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new AuthFlowError("Login timed out after 5 minutes"));
+        reject(
+          new AuthFlowError(
+            `Login timed out after ${LOGIN_TIMEOUT_MS / 60_000} minutes`,
+          ),
+        );
       }, LOGIN_TIMEOUT_MS);
 
       const consider = (url: string) => {
@@ -174,9 +179,7 @@ export async function captureWithPlaywright(
     await page.goto(authorizeUrl, { waitUntil: "domcontentloaded" });
     return await redirect;
   } finally {
-    await browser.close().catch((error: unknown) => {
-      logError("browser close failed", error);
-    });
+    await browser.close();
   }
 }
 

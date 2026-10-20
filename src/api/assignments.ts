@@ -5,6 +5,7 @@ import { handInQuery } from "./homework.js";
 import { linkId } from "./simplify.js";
 import {
   compact,
+  compactItem,
   mapAttachment,
   mapStudiewijzerItem,
   type AttachmentView,
@@ -69,7 +70,7 @@ export async function fetchAssignments(
         ({ raw, view }) =>
           !(raw.studiewijzerItem?.projectgroepen && !view.projectgroep),
       )
-      .map(({ view }) => compact({ ...view, ...categorize(view, now) }))
+      .map(({ view }) => compactItem({ ...view, ...categorize(view, now) }))
       .sort((a, b) =>
         (a.inlevermoment?.eind ?? "").localeCompare(
           b.inlevermoment?.eind ?? "",
@@ -101,6 +102,24 @@ type RawBoodschap = {
   };
 };
 
+/**
+ * One assignment from exactly the list `assignments` returns (same request,
+ * all Range pages, same mapping and filter). Ids are compared as strings.
+ */
+export async function findAssignment(
+  client: ApiClient,
+  leerlingId: number,
+  toekenningId: string | number,
+  now: Date,
+): Promise<{ item?: AssignmentView; total: number }> {
+  const all = await fetchAssignments(client, leerlingId, now);
+  const wanted = String(toekenningId).trim();
+  return {
+    item: all.find((entry) => String(entry.toekenningId) === wanted),
+    total: all.length,
+  };
+}
+
 type RawInleverDetails = {
   aantalInleveringenInVerwerking?: number;
   inleveringen?: RawInlevering[];
@@ -119,6 +138,11 @@ export type SubmissionView = {
   ingeleverdDoor?: string;
 };
 
+/**
+ * Submissions and teacher reactions. Student sessions only: the portal calls
+ * this solely when the current context is a student, and a parent session
+ * gets HTTP 400. Not used by the parent tools; kept for a future student mode.
+ */
 export async function fetchAssignmentDetail(
   client: ApiClient,
   toekenningId: number,
