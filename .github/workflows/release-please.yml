@@ -1,0 +1,104 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      publish_tag:
+        description: "Git tag to publish with OIDC (e.g. v0.1.1). Required for manual publish."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: github.event_name == 'push' && needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      # Node 24 so npm@latest (trusted publishing needs npm >= 11.5.1) can install.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
+      - run: npm --version && node --version
+      - run: npm ci
+      - run: npm run prepublishOnly
+      - name: Skip if version already on npm
+        id: published
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Package ${NAME}@${VERSION} already published; skipping npm publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish
+        if: steps.published.outputs.exists != 'true'
+        # setup-node may export a placeholder NODE_AUTH_TOKEN; unset so OIDC is used.
+        run: |
+          unset NODE_AUTH_TOKEN
+          npm publish --provenance --access public
+
+  # Manual publish of an existing tag via OIDC (validates npm trusted publisher
+  # bound to this workflow file). Use: gh workflow run release-please.yml -f publish_tag=vX.Y.Z
+  publish-tag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.publish_tag }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
+      - run: npm --version && node --version
+      - run: npm ci
+      - run: npm run prepublishOnly
+      - name: Skip if version already on npm
+        id: published
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Package ${NAME}@${VERSION} already published; skipping npm publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish
+        if: steps.published.outputs.exists != 'true'
+        run: |
+          unset NODE_AUTH_TOKEN
+          npm publish --provenance --access public
