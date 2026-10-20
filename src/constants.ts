@@ -1,7 +1,6 @@
 export const LOGIN_INSTRUCTION = "run `npx somtoday-mcp login` in a terminal";
 
 export const NATIVE_CLIENT_ID = "somtoday-leerling-native";
-export const FALLBACK_CLIENT_ID = "D50E0C06-32D1-4B41-A137-A9A850C892C2";
 
 export const REDIRECT_URI =
   "somtoday://nl.topicus.somtoday.leerling/oauth/callback";
@@ -24,6 +23,7 @@ export const SCOPE = "openid";
 export const SESSION_NO = "no_session";
 
 export const REFRESH_SKEW_MS = 60_000;
+export const TOKEN_TIMEOUT_MS = 20_000;
 export const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
 export const TIMEZONE = "Europe/Amsterdam";
