@@ -1,6 +1,22 @@
 import { mkdir, open, readFile, stat, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 
+/**
+ * Errors from creating the lock file that mean "someone else holds it or is
+ * just deleting it". On Windows, opening a file that another process is
+ * unlinking fails with EPERM/EACCES/EBUSY instead of EEXIST.
+ */
+export function isLockBusy(
+  code: string | undefined,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (code === "EEXIST") return true;
+  return (
+    platform === "win32" &&
+    (code === "EPERM" || code === "EACCES" || code === "EBUSY")
+  );
+}
+
 export interface SessionLock {
   withLock<T>(run: () => Promise<T>): Promise<T>;
 }
@@ -25,6 +41,8 @@ export class FileLock implements SessionLock {
       staleMs?: number;
       pollMs?: number;
       clock?: () => number;
+      platform?: NodeJS.Platform;
+      openFile?: typeof open;
     } = {},
   ) {}
 
@@ -43,15 +61,18 @@ export class FileLock implements SessionLock {
     const pollMs = this.options.pollMs ?? 100;
     const clock = this.options.clock ?? Date.now;
     const deadline = clock() + timeoutMs;
+    const openFile = this.options.openFile ?? open;
+    let lastCode: string | undefined;
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
     for (;;) {
       try {
-        const handle = await open(this.path, "wx", 0o600);
+        const handle = await openFile(this.path, "wx", 0o600);
         await handle.writeFile(`${process.pid} ${new Date().toISOString()}\n`);
         await handle.close();
         return;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        lastCode = (error as NodeJS.ErrnoException).code;
+        if (!isLockBusy(lastCode, this.options.platform)) {
           throw error;
         }
       }
@@ -61,7 +82,7 @@ export class FileLock implements SessionLock {
       }
       if (clock() >= deadline) {
         throw new Error(
-          `Timed out waiting for the session lock (${this.path}). If no other somtoday-mcp process is running, delete that file.`,
+          `Timed out waiting for the session lock (${this.path}, last ${lastCode ?? "error"}). If no other somtoday-mcp process is running, delete that file.`,
         );
       }
       await new Promise((resolve) => setTimeout(resolve, pollMs));
