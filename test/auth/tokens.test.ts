@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { runLogin } from "../../src/auth/login.js";
 import { MemorySecretStore } from "../../src/auth/memory-store.js";
 import { SessionManager } from "../../src/auth/session.js";
-import { exchangeAuthorizationCode, refreshAccessToken } from "../../src/auth/tokens.js";
+import {
+  exchangeAuthorizationCode,
+  refreshAccessToken,
+} from "../../src/auth/tokens.js";
 import {
   FALLBACK_CLIENT_ID,
   NATIVE_CLIENT_ID,
@@ -54,7 +57,9 @@ describe("token exchange", () => {
     expect(tokens.accessToken).toBe("access-plain");
     expect(calls[0]?.url).toBe(TOKEN_URL);
     const headers = new Headers(calls[0]?.init?.headers);
-    expect(headers.get("content-type")).toBe("application/x-www-form-urlencoded");
+    expect(headers.get("content-type")).toBe(
+      "application/x-www-form-urlencoded",
+    );
     const body = formBody(calls[0]?.init);
     expect(body.get("grant_type")).toBe("authorization_code");
     expect(body.get("client_id")).toBe(NATIVE_CLIENT_ID);

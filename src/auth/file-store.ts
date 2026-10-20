@@ -4,8 +4,7 @@ import { homedir } from "node:os";
 import type { SecretStore, StoredSession } from "./store.js";
 
 export function defaultSessionPath(): string {
-  const base =
-    process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  const base = process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
   return join(base, "somtoday-mcp", "session.json");
 }
 

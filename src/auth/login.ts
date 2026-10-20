@@ -3,10 +3,19 @@ import { stdin as input, stdout as output } from "node:process";
 import { LOGIN_TIMEOUT_MS } from "../constants.js";
 import { AuthFlowError } from "../errors.js";
 import { logError } from "../log.js";
-import { challengeFromVerifier, generateState, generateVerifier } from "../pkce.js";
+import {
+  challengeFromVerifier,
+  generateState,
+  generateVerifier,
+} from "../pkce.js";
 import { buildAuthorizeUrl } from "./authorize.js";
 import { isCallbackUrl, parseRedirectUrl } from "./redirect.js";
-import { fetchSchools, matchSchools, schoolLabel, type School } from "./school.js";
+import {
+  fetchSchools,
+  matchSchools,
+  schoolLabel,
+  type School,
+} from "./school.js";
 import { exchangeAuthorizationCode } from "./tokens.js";
 import type { SessionManager } from "./session.js";
 
@@ -52,7 +61,9 @@ async function loginWithIo(options: {
     tenantUuid: school.uuid,
   });
 
-  io.write("Opening a headed Chromium window. Type your password there, not here.");
+  io.write(
+    "Opening a headed Chromium window. Type your password there, not here.",
+  );
   io.write("If Chromium is missing: npx playwright install chromium");
 
   const capture = options.captureRedirect ?? captureWithPlaywright;
@@ -74,7 +85,7 @@ async function loginWithIo(options: {
     throw new AuthFlowError("OAuth state mismatch");
   }
 
-  let code = parsed.code;
+  const code = parsed.code;
   try {
     const tokens = await exchangeAuthorizationCode({
       code,
@@ -86,11 +97,12 @@ async function loginWithIo(options: {
       tenantUuid: school.uuid,
       schoolLabel: schoolLabel(school),
     });
-    io.write("Login stored. You can close this terminal and use the MCP server.");
+    io.write(
+      "Login stored. You can close this terminal and use the MCP server.",
+    );
   } finally {
     wipe(code);
     wipe(verifier);
-    code = "";
   }
 }
 
@@ -136,7 +148,9 @@ function wipe(value: string): void {
   void value.length;
 }
 
-export async function captureWithPlaywright(authorizeUrl: string): Promise<string> {
+export async function captureWithPlaywright(
+  authorizeUrl: string,
+): Promise<string> {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
@@ -170,7 +184,9 @@ export async function captureWithPlaywright(authorizeUrl: string): Promise<strin
 
 export function assertNoPasswordArgs(argv: string[]): void {
   const banned = ["--password", "-p", "--passwd"];
-  if (argv.some((arg) => banned.includes(arg) || arg.startsWith("--password="))) {
+  if (
+    argv.some((arg) => banned.includes(arg) || arg.startsWith("--password="))
+  ) {
     throw new AuthFlowError("Passwords are not accepted on the command line");
   }
 }

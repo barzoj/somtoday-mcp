@@ -57,7 +57,9 @@ export async function exchangeAuthorizationCode(options: {
     return readTokenSet(first.json, NATIVE_CLIENT_ID);
   }
 
-  logError(`token exchange HTTP ${first.status} error=${first.json.error ?? ""}`);
+  logError(
+    `token exchange HTTP ${first.status} error=${first.json.error ?? ""}`,
+  );
 
   const retry = await postToken(fetchFn, {
     ...baseFields,
@@ -65,7 +67,9 @@ export async function exchangeAuthorizationCode(options: {
     tenant_uuid: options.tenantUuid,
   });
   if (!retry.ok) {
-    logError(`token exchange retry HTTP ${retry.status} error=${retry.json.error ?? ""}`);
+    logError(
+      `token exchange retry HTTP ${retry.status} error=${retry.json.error ?? ""}`,
+    );
     throw new AuthFlowError(
       `Token exchange failed: HTTP ${retry.status} ${retry.json.error ?? ""}`.trim(),
     );
@@ -102,7 +106,9 @@ export async function refreshAccessToken(options: {
     if (fallback.ok) {
       return readTokenSet(fallback.json, FALLBACK_CLIENT_ID);
     }
-    logError(`refresh fallback HTTP ${fallback.status} error=${fallback.json.error ?? ""}`);
+    logError(
+      `refresh fallback HTTP ${fallback.status} error=${fallback.json.error ?? ""}`,
+    );
     throw new AuthFlowError(
       `Refresh failed: HTTP ${fallback.status} ${fallback.json.error ?? ""}`.trim(),
     );

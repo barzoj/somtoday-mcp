@@ -18,11 +18,4 @@ export default tseslint.config(
       ],
     },
   },
-  {
-    // Left untouched until the pending auth rework; re-enable there.
-    files: ["src/auth/login.ts"],
-    rules: {
-      "no-useless-assignment": "off",
-    },
-  },
 );

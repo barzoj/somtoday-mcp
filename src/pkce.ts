@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
-const UNRESERVED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+const UNRESERVED =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 
 export function base64url(input: Buffer | Uint8Array): string {
   return Buffer.from(input)
@@ -10,12 +11,22 @@ export function base64url(input: Buffer | Uint8Array): string {
     .replace(/=+$/g, "");
 }
 
-export function generateVerifier(length = 64): string {
+// Largest multiple of the alphabet size that fits in a byte; bytes at or above
+// it are rejected so every character is equally likely (no modulo bias).
+const UNBIASED_LIMIT = 256 - (256 % UNRESERVED.length);
+
+export function generateVerifier(
+  length = 64,
+  random: (size: number) => Uint8Array = randomBytes,
+): string {
   const size = Math.min(128, Math.max(43, length));
-  const bytes = randomBytes(size);
   let out = "";
-  for (let i = 0; i < size; i++) {
-    out += UNRESERVED[bytes[i]! % UNRESERVED.length];
+  while (out.length < size) {
+    for (const byte of random(size)) {
+      if (byte >= UNBIASED_LIMIT) continue;
+      out += UNRESERVED[byte % UNRESERVED.length];
+      if (out.length === size) break;
+    }
   }
   return out;
 }

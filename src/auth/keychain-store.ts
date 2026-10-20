@@ -7,7 +7,9 @@ export type SecurityRunner = (args: string[]) => Promise<string>;
 
 function defaultSecurity(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("security", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("security", args, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let stdout = "";
     let stderr = "";
     child.stdout?.on("data", (chunk: Buffer) => {
