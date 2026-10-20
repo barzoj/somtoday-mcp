@@ -13,7 +13,10 @@ setDefaultResultOrder("ipv4first");
 const HELP = `Usage: somtoday-mcp [command]
 
   (no command)      start the MCP stdio server
-  login             sign in to Somtoday in a browser window
+  login [--school-uuid <uuid>]
+                    open a browser window, search for your school on the
+                    Somtoday login page and sign in; --school-uuid skips
+                    the school search
   status [--check]  show where the session is stored and the last renewal;
                     --check also renews the token and calls the API once
   logout            delete the stored session from this computer
@@ -36,7 +39,10 @@ async function main(): Promise<void> {
       console.log(HELP);
       return;
     case "login":
-      await runLogin({ session: createDefaultSession() });
+      await runLogin({
+        session: createDefaultSession(),
+        schoolUuid: flagValue(args, "--school-uuid"),
+      });
       return;
     case "status": {
       const ok = await runStatus(
@@ -56,6 +62,13 @@ async function main(): Promise<void> {
       logError(`Unknown command: ${command}\n\n${HELP}`);
       process.exitCode = 2;
   }
+}
+
+function flagValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  if (index >= 0) return args[index + 1];
+  const inline = args.find((arg) => arg.startsWith(`${flag}=`));
+  return inline?.slice(flag.length + 1);
 }
 
 main().catch((error: unknown) => {

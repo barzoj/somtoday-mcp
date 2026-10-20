@@ -31,7 +31,7 @@ Not included: news, messages, absence reporting, parent-evening scheduling, uplo
 ## Read-only and privacy
 
 - Tools only send `GET` requests. Nothing is written, submitted, or marked as read.
-- The server talks only to Somtoday's login and API servers. During login it also downloads the public list of schools (from Somtoday, or a mirror on GitHub if that is unavailable).
+- The server talks only to Somtoday's login and API servers.
 - No telemetry or analytics.
 - Your password is typed only into the Somtoday login page in a browser window. No tool, CLI flag, environment variable, or prompt ever asks for it.
 - Tools never return tokens.
@@ -119,9 +119,11 @@ Run login in a terminal, not from inside your MCP client:
 npx -y somtoday-mcp login
 ```
 
-1. Type (part of) your school's name. The CLI looks it up in Somtoday's public school list and asks again if several schools match.
-2. A Chromium window opens on the regular Somtoday login page. Sign in there as you normally would, including any two-step verification. You have 5 minutes.
+1. A Chromium window opens on the regular Somtoday login page. Search for your school there, the same way as in the official app.
+2. Sign in as you normally would, including any two-step verification. You have 5 minutes.
 3. When the window closes, the session is saved on your computer and the MCP server can use it.
+
+If you know your school's tenant UUID you can skip the school search with `npx -y somtoday-mcp login --school-uuid <uuid>`.
 
 If a tool is called before you have signed in, or after the saved session stops working, it returns:
 
@@ -147,7 +149,7 @@ Several MCP clients (for example two Cursor windows) can share one session: toke
 - OAuth 2.0 authorization code flow with PKCE (S256), using the public (secret-less) client id and redirect URI of Somtoday's native app. There is no client secret and nothing uses the Somtoday Connect partner API.
 - The login page redirects to a custom `somtoday://` URL; Playwright reads the authorization code from that request inside the browser window. No local web server is started.
 - Short-lived access tokens are kept in memory only.
-- The school list comes from `servers.somtoday.nl/organisaties.json`, with a public mirror as fallback when that host is unavailable.
+- The school is chosen on Somtoday's own login page. The school's tenant comes from the token response (`somtoday_tenant`), and the label shown by `whoami` and `status` from the `orgname` claim (or, failing that, the school data of your account).
 
 </details>
 

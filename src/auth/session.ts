@@ -78,7 +78,7 @@ export class SessionManager {
     const next: StoredSession = {
       refreshToken: tokens.refreshToken,
       clientId: tokens.clientId,
-      tenantUuid: extras.tenantUuid,
+      ...(extras.tenantUuid ? { tenantUuid: extras.tenantUuid } : {}),
       apiBaseUrl: tokens.apiBaseUrl,
       schoolLabel: extras.schoolLabel,
     };
@@ -117,7 +117,7 @@ export class SessionManager {
     if (!stored) {
       throw new LoginRequiredError();
     }
-    return stored.schoolLabel || stored.tenantUuid;
+    return stored.schoolLabel || stored.tenantUuid || "Somtoday";
   }
 
   async ensureFresh(): Promise<void> {
