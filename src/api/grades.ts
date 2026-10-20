@@ -1,6 +1,20 @@
-import { GRADE_ADDITIONALS, GRADE_CAP, GRADE_SORT, GRADE_TYPES } from "../constants.js";
-import { parseContentRangeTotal, repeatedParams, type ApiClient } from "./client.js";
-import type { GeldendResultaat, ItemList, Plaatsing, Vakgemiddelde } from "./types.js";
+import {
+  GRADE_ADDITIONALS,
+  GRADE_CAP,
+  GRADE_SORT,
+  GRADE_TYPES,
+} from "../constants.js";
+import {
+  parseContentRangeTotal,
+  repeatedParams,
+  type ApiClient,
+} from "./client.js";
+import type {
+  GeldendResultaat,
+  ItemList,
+  Plaatsing,
+  Vakgemiddelde,
+} from "./types.js";
 
 export type GradeView = {
   vaknaam?: string;
@@ -33,7 +47,10 @@ export function mapGrade(item: GeldendResultaat): GradeView {
   };
 }
 
-export function mapAverages(payload: { gemiddelden?: Vakgemiddelde[]; items?: Vakgemiddelde[] }): AverageView[] {
+export function mapAverages(payload: {
+  gemiddelden?: Vakgemiddelde[];
+  items?: Vakgemiddelde[];
+}): AverageView[] {
   const rows = payload.gemiddelden ?? [];
   return rows.map((row) => ({
     afkorting: row.vakkeuze?.vak?.afkorting,
@@ -69,9 +86,12 @@ export async function fetchAverages(
   client: ApiClient,
   leerlingId: number,
 ): Promise<AverageView[]> {
-  const { body } = await client.get<ItemList<Plaatsing>>("/plaatsingen", new URLSearchParams({
-    leerling: String(leerlingId),
-  }));
+  const { body } = await client.get<ItemList<Plaatsing>>(
+    "/plaatsingen",
+    new URLSearchParams({
+      leerling: String(leerlingId),
+    }),
+  );
   const current = (body.items ?? []).find((item) => item.huidig === true);
   if (!current?.UUID) {
     return [];

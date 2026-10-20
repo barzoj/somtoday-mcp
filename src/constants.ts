@@ -1,5 +1,4 @@
-export const LOGIN_INSTRUCTION =
-  "run `npx somtoday-mcp login` in a terminal";
+export const LOGIN_INSTRUCTION = "run `npx somtoday-mcp login` in a terminal";
 
 export const NATIVE_CLIENT_ID = "somtoday-leerling-native";
 export const FALLBACK_CLIENT_ID = "D50E0C06-32D1-4B41-A137-A9A850C892C2";
@@ -16,8 +15,7 @@ export const SCHOOLS_MIRROR_URL =
 export const DEFAULT_API_BASE = "https://api.somtoday.nl";
 export const API_PREFIX = "/rest/v1";
 
-export const ACCEPT =
-  "application/vnd.topicus.platinum+json; charset=utf-8";
+export const ACCEPT = "application/vnd.topicus.platinum+json; charset=utf-8";
 
 export const KEYCHAIN_SERVICE = "somtoday-mcp";
 export const KEYCHAIN_ACCOUNT = "session";

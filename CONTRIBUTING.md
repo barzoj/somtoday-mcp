@@ -8,10 +8,14 @@ Requires Node.js 22 or newer.
 
 ```bash
 npm install
+npm run lint
+npm run format:check
 npm run typecheck
 npm run build
 npm test
 ```
+
+Format locally with `npm run format`.
 
 Tests run with no network: `test/setup.ts` blocks `inloggen.somtoday.nl`, `api.somtoday.nl`, and `servers.somtoday.nl`, and `fetch` and the keychain are mocked. Do not add tests that talk to real Somtoday hosts.
 
@@ -50,6 +54,8 @@ Maintainers merge to `main` using Conventional Commits. Release Please opens a r
 ## Before opening a PR
 
 ```bash
+npm run lint
+npm run format:check
 npm run typecheck
 npm run build
 npm test

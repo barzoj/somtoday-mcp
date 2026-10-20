@@ -13,12 +13,12 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 
 ## What it does
 
-| Tool | What you get |
-| --- | --- |
-| `whoami` | Your school label, the linked children with their numeric ids, and which portal sections are visible to you. |
-| `lessons` | The timetable for one day, and whether that day is a school holiday. |
-| `homework` | Homework and study-planner items for one day: per lesson, per day, per week, and hand-in assignments. |
-| `grades` | The most recent results (up to 30) and averages per subject. |
+| Tool       | What you get                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------ |
+| `whoami`   | Your school label, the linked children with their numeric ids, and which portal sections are visible to you. |
+| `lessons`  | The timetable for one day, and whether that day is a school holiday.                                         |
+| `homework` | Homework and study-planner items for one day: per lesson, per day, per week, and hand-in assignments.        |
+| `grades`   | The most recent results (up to 30) and averages per subject.                                                 |
 
 - `lessons` and `homework` take an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and default to **tomorrow**.
 - If more than one child is linked to your account, pass `leerlingId` (the numeric id from `whoami`).
@@ -139,9 +139,9 @@ Run login again in that case. Session renewal is still being improved, so for no
 
 ### Where the session is stored
 
-| Platform | Location |
-| --- | --- |
-| macOS | Login Keychain, service `somtoday-mcp` (falls back to the file below if the keychain cannot be used) |
+| Platform        | Location                                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------------- |
+| macOS           | Login Keychain, service `somtoday-mcp` (falls back to the file below if the keychain cannot be used)           |
 | Linux / Windows | `session.json` with `0600` permissions in `$XDG_CONFIG_HOME/somtoday-mcp/` (default `~/.config/somtoday-mcp/`) |
 
 To sign out, delete the stored session:
@@ -153,8 +153,8 @@ rm ~/.config/somtoday-mcp/session.json             # file fallback
 
 ### Environment variables
 
-| Variable | Effect |
-| --- | --- |
+| Variable          | Effect                                                      |
+| ----------------- | ----------------------------------------------------------- |
 | `XDG_CONFIG_HOME` | Base directory for the file fallback (default `~/.config`). |
 
 Logs go to stderr (stdout is reserved for the MCP protocol) and redact token-like values.
@@ -163,6 +163,8 @@ Logs go to stderr (stdout is reserved for the MCP protocol) and redact token-lik
 
 ```bash
 npm install
+npm run lint
+npm run format:check
 npm run typecheck
 npm run build
 npm test

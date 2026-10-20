@@ -1,4 +1,5 @@
-const BLOCKED = /inloggen\.somtoday\.nl|api\.somtoday\.nl|servers\.somtoday\.nl/;
+const BLOCKED =
+  /inloggen\.somtoday\.nl|api\.somtoday\.nl|servers\.somtoday\.nl/;
 
 const originalFetch = globalThis.fetch;
 

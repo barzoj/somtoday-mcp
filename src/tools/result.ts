@@ -21,7 +21,9 @@ export function errorResult(text: string): ToolResult {
   };
 }
 
-export async function withToolErrors(run: () => Promise<ToolResult>): Promise<ToolResult> {
+export async function withToolErrors(
+  run: () => Promise<ToolResult>,
+): Promise<ToolResult> {
   try {
     return await run();
   } catch (error) {

@@ -6,8 +6,7 @@ const SENSITIVE_FIELDS = [
   "id_token",
 ] as const;
 
-const JWT_RE =
-  /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]*/g;
+const JWT_RE = /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]*/g;
 
 const FIELD_RE = new RegExp(
   `((?:${SENSITIVE_FIELDS.join("|")})\\s*[=:]\\s*)([^&\\s"',}]+)`,

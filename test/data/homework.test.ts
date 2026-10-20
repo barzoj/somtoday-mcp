@@ -20,17 +20,33 @@ describe("homework filters", () => {
 
     const dated = filterDatedHomework(
       [
-        { datumTijd: "2026-10-11T22:30:00.000Z", studiewijzerItem: { onderwerp: "Keep" } },
-        { datumTijd: "2026-10-12T22:30:00.000Z", studiewijzerItem: { onderwerp: "Drop" } },
+        {
+          datumTijd: "2026-10-11T22:30:00.000Z",
+          studiewijzerItem: { onderwerp: "Keep" },
+        },
+        {
+          datumTijd: "2026-10-12T22:30:00.000Z",
+          studiewijzerItem: { onderwerp: "Drop" },
+        },
       ],
       ymd,
     );
-    expect(dated.map((item) => item.studiewijzerItem?.onderwerp)).toEqual(["Keep"]);
+    expect(dated.map((item) => item.studiewijzerItem?.onderwerp)).toEqual([
+      "Keep",
+    ]);
 
     const weeks = filterWeekHomework(
       [
-        { weeknummerVanaf: 41, weeknummerTm: 43, studiewijzerItem: { onderwerp: "Week" } },
-        { weeknummerVanaf: 40, weeknummerTm: 41, studiewijzerItem: { onderwerp: "Other" } },
+        {
+          weeknummerVanaf: 41,
+          weeknummerTm: 43,
+          studiewijzerItem: { onderwerp: "Week" },
+        },
+        {
+          weeknummerVanaf: 40,
+          weeknummerTm: 41,
+          studiewijzerItem: { onderwerp: "Other" },
+        },
       ],
       ymd,
     );
@@ -44,7 +60,9 @@ describe("homework filters", () => {
     const query = handInQuery(4242);
     expect(query.get("studiewijzerItem.heeftInleverperiode")).toBe("true");
     expect(query.has("jaarWeek")).toBe(false);
-    expect(query.get("geenDifferentiatieOfGedifferentieerdVoorLeerling")).toBe("4242");
+    expect(query.get("geenDifferentiatieOfGedifferentieerdVoorLeerling")).toBe(
+      "4242",
+    );
   });
 
   it("requests the day-task URL for hand-ins", async () => {
@@ -58,16 +76,23 @@ describe("homework filters", () => {
     await store.save(FAKE_SESSION);
     const session = new SessionManager(store, fetchFn, () => 10_000_000);
     session.seedAccessToken("access-plain", 10_000_000 + 3_600_000);
-    await fetchHomeworkSets(new ApiClient(session, fetchFn), 4242, "2026-10-12");
+    await fetchHomeworkSets(
+      new ApiClient(session, fetchFn),
+      4242,
+      "2026-10-12",
+    );
 
-    const handIn = calls.find((call) =>
-      call.url.includes("studiewijzeritemdagtoekenningen") &&
-      call.url.includes("heeftInleverperiode=true"),
+    const handIn = calls.find(
+      (call) =>
+        call.url.includes("studiewijzeritemdagtoekenningen") &&
+        call.url.includes("heeftInleverperiode=true"),
     );
     expect(handIn).toBeTruthy();
     const url = new URL(handIn!.url);
     expect(url.pathname).toBe("/rest/v1/studiewijzeritemdagtoekenningen");
-    expect(url.searchParams.get("studiewijzerItem.heeftInleverperiode")).toBe("true");
+    expect(url.searchParams.get("studiewijzerItem.heeftInleverperiode")).toBe(
+      "true",
+    );
     expect(url.searchParams.has("jaarWeek")).toBe(false);
   });
 

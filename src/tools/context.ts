@@ -19,7 +19,9 @@ export function createToolContext(
   };
 }
 
-export async function requireSession(ctx: ToolContext): Promise<ToolResult | null> {
+export async function requireSession(
+  ctx: ToolContext,
+): Promise<ToolResult | null> {
   if (!(await ctx.session.hasSession())) {
     return errorResult(LOGIN_INSTRUCTION);
   }

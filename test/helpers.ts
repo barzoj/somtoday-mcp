@@ -26,7 +26,9 @@ export function jsonResponse(
 }
 
 export function scriptedFetch(
-  handlers: Array<(url: string, init?: RequestInit) => Response | Promise<Response>>,
+  handlers: Array<
+    (url: string, init?: RequestInit) => Response | Promise<Response>
+  >,
 ): {
   fetchFn: typeof fetch;
   calls: Array<{ url: string; init?: RequestInit }>;
@@ -64,7 +66,10 @@ export async function toolContext(
 ): Promise<ToolContext> {
   const session = await sessionWithStore(fetchFn, stored);
   if (stored) {
-    session.seedAccessToken("access-fixture-not-jwt-plain", Date.now() + 3_600_000);
+    session.seedAccessToken(
+      "access-fixture-not-jwt-plain",
+      Date.now() + 3_600_000,
+    );
   }
   return createToolContext(session, fetchFn);
 }
