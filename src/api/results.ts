@@ -141,3 +141,142 @@ export async function fetchNextPublication(
   );
   return body.value ?? null;
 }
+
+type RawPlaatsing = {
+  UUID?: string;
+  huidig?: boolean;
+  leerjaar?: number;
+  opleidingsnaam?: string;
+  stamgroepnaam?: string;
+  vanafDatum?: string;
+  totDatum?: string;
+  schooljaar?: { naam?: string; isHuidig?: boolean };
+  vestiging?: { naam?: string };
+};
+
+export type PlaatsingView = {
+  uuid: string;
+  schooljaar?: string;
+  huidig?: boolean;
+  leerjaar?: number;
+  opleiding?: string;
+  stamgroep?: string;
+  vestiging?: string;
+  van?: string;
+  tot?: string;
+};
+
+export async function fetchPlaatsingen(
+  client: ApiClient,
+  leerlingId: number,
+): Promise<PlaatsingView[]> {
+  const { items } = await client.getAll<RawPlaatsing>(
+    "/plaatsingen",
+    new URLSearchParams({ leerling: String(leerlingId) }),
+  );
+  return items
+    .filter((item): item is RawPlaatsing & { UUID: string } =>
+      Boolean(item.UUID),
+    )
+    .map((item) =>
+      compact({
+        uuid: item.UUID,
+        schooljaar: item.schooljaar?.naam,
+        huidig: item.huidig,
+        leerjaar: item.leerjaar,
+        opleiding: item.opleidingsnaam,
+        stamgroep: item.stamgroepnaam,
+        vestiging: item.vestiging?.naam,
+        van: item.vanafDatum,
+        tot: item.totDatum,
+      }),
+    )
+    .sort((a, b) => (b.van ?? "").localeCompare(a.van ?? ""));
+}
+
+/** Current placement, or the one for a school year like "2025/2026". */
+export function pickPlaatsing(
+  plaatsingen: PlaatsingView[],
+  schooljaar?: string,
+): PlaatsingView {
+  const chosen = schooljaar
+    ? plaatsingen.find(
+        (item) => item.schooljaar === schooljaar || item.uuid === schooljaar,
+      )
+    : (plaatsingen.find((item) => item.huidig) ?? plaatsingen[0]);
+  if (!chosen) {
+    const years = plaatsingen.map((item) => item.schooljaar).join(", ");
+    throw new Error(
+      schooljaar
+        ? `No placement for "${schooljaar}". Known school years: ${years || "none"}`
+        : "No placements found for this child",
+    );
+  }
+  return chosen;
+}
+
+type RawVakVoortgang = {
+  vakkeuze?: {
+    vak?: { UUID?: string; naam?: string; afkorting?: string };
+    lichting?: { UUID?: string; naam?: string };
+    relevanteCijferLichting?: { UUID?: string };
+    vrijstelling?: boolean;
+  };
+  standaardNormering?: string;
+  alternatieveNormering?: string;
+  perioden?: Array<{
+    periode?: number;
+    rapportCijfer?: RawResult;
+    resultaten?: RawResult[];
+  }>;
+};
+
+export async function fetchGradeOverview(
+  client: ApiClient,
+  leerlingId: number,
+  plaatsingUuid: string,
+) {
+  const { body } = await client.get<{
+    cijferperioden?: Array<{
+      periode?: number;
+      datumVan?: string;
+      datumTot?: string;
+    }>;
+    vakResultaten?: RawVakVoortgang[];
+  }>(
+    `/geldendvoortgangsdossierresultaten/leerling/cijferoverzicht/${leerlingId}`,
+    new URLSearchParams({ plaatsing: plaatsingUuid }),
+  );
+  return {
+    perioden: (body.cijferperioden ?? []).map((periode) =>
+      compact({
+        periode: periode.periode,
+        van: periode.datumVan,
+        tot: periode.datumTot,
+      }),
+    ),
+    vakken: (body.vakResultaten ?? [])
+      .map((vak) =>
+        compact({
+          vak: vak.vakkeuze?.vak?.naam,
+          afkorting: vak.vakkeuze?.vak?.afkorting,
+          vakUuid: vak.vakkeuze?.vak?.UUID,
+          lichtingUuid:
+            vak.vakkeuze?.relevanteCijferLichting?.UUID ??
+            vak.vakkeuze?.lichting?.UUID,
+          vrijstelling: vak.vakkeuze?.vrijstelling || undefined,
+          normering: vak.alternatieveNormering ?? vak.standaardNormering,
+          perioden: (vak.perioden ?? []).map((periode) =>
+            compact({
+              periode: periode.periode,
+              rapportCijfer: periode.rapportCijfer
+                ? mapResult(periode.rapportCijfer)
+                : undefined,
+              resultaten: (periode.resultaten ?? []).map(mapResult),
+            }),
+          ),
+        }),
+      )
+      .sort((a, b) => (a.vak ?? "").localeCompare(b.vak ?? "")),
+  };
+}
