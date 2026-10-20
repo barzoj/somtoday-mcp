@@ -35,14 +35,12 @@ export async function parentEveningTool(
       };
     }
     const ouderavonden = await Promise.all(
-      ids
-        .slice(0, 10)
-        .map(async (id) => ({
-          id,
-          ...((await section(() =>
-            fetchParentEvening(ctx.client, id),
-          )) as object),
-        })),
+      ids.slice(0, 10).map(async (id) => ({
+        id,
+        ...((await section(() =>
+          fetchParentEvening(ctx.client, id),
+        )) as object),
+      })),
     );
     return { ouderavonden };
   });
