@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a problem with somtoday-mcp
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste Somtoday passwords, access or refresh tokens, authorization codes, session files, or Keychain dumps.**
+        Redact school names, student and parent names, student ids, and any grades or homework content.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what actually happened? HTTP status codes are useful; response bodies usually contain personal data.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package / commit
+      description: npm version or git SHA (not a token)
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: "22"
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Which command or tool you ran. Do not include tokens or real names.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: I have not included passwords, tokens, or anyone's personal data (names, school, grades).
+          required: true
