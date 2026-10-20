@@ -20,6 +20,15 @@ export const KEYCHAIN_SERVICE = "somtoday-mcp";
 export const KEYCHAIN_ACCOUNT = "session";
 
 export const SCOPE = "openid";
+/** Same `claims` request the official Somtoday app sends on authorize, token, and refresh. */
+export const CLAIMS = JSON.stringify({
+  id_token: {
+    given_name: null,
+    leerlingen: null,
+    orgname: null,
+    affiliation: { values: ["student", "parent/guardian"] },
+  },
+});
 export const SESSION_NO = "no_session";
 
 export const REFRESH_SKEW_MS = 60_000;

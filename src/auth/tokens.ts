@@ -1,4 +1,5 @@
 import {
+  CLAIMS,
   DEFAULT_API_BASE,
   NATIVE_CLIENT_ID,
   REDIRECT_URI,
@@ -54,6 +55,7 @@ export async function exchangeAuthorizationCode(options: {
     code_verifier: options.verifier,
     client_id: NATIVE_CLIENT_ID,
     scope: SCOPE,
+    claims: CLAIMS,
   };
 
   const first = await postToken(fetchFn, baseFields);
@@ -95,6 +97,7 @@ export async function refreshAccessToken(options: {
     refresh_token: options.refreshToken,
     client_id: options.clientId,
     scope: SCOPE,
+    claims: CLAIMS,
   });
   if (result.ok) {
     return readTokenSet(result.json, options.clientId, options.refreshToken);

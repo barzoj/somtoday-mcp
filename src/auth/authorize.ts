@@ -1,5 +1,6 @@
 import {
   AUTHORIZE_URL,
+  CLAIMS,
   NATIVE_CLIENT_ID,
   REDIRECT_URI,
   SCOPE,
@@ -23,5 +24,6 @@ export function buildAuthorizeUrl(params: AuthorizeParams): string {
   url.searchParams.set("state", params.state);
   url.searchParams.set("tenant_uuid", params.tenantUuid);
   url.searchParams.set("session", SESSION_NO);
+  url.searchParams.set("claims", CLAIMS);
   return url.toString();
 }
