@@ -422,3 +422,90 @@ export async function fetchDeeltoetsen(
   );
   return items.map(mapResult);
 }
+
+export type ExamContext = {
+  examenjaar?: number;
+  onderwijssoort?: string;
+  plaatsingUuid?: string;
+  lichtingUuid?: string;
+};
+
+export async function fetchExamContexts(
+  client: ApiClient,
+  leerlingId: number,
+): Promise<ExamContext[]> {
+  const { items } = await client.getAll<{
+    examenjaar?: number;
+    onderwijssoort?: string;
+    plaatsingUUID?: string;
+    lichtingUUID?: string;
+  }>(`/geldendexamendossierresultaten/leerling/context/${leerlingId}`);
+  return items
+    .map((item) =>
+      compact({
+        examenjaar: item.examenjaar,
+        onderwijssoort: item.onderwijssoort,
+        plaatsingUuid: item.plaatsingUUID,
+        lichtingUuid: item.lichtingUUID,
+      }),
+    )
+    .sort((a, b) => (b.examenjaar ?? 0) - (a.examenjaar ?? 0));
+}
+
+type RawExamVak = {
+  vakkeuze?: RawVakkeuze;
+  resultaten?: RawResult[];
+  overigeToetskolommen?: Array<{
+    omschrijving?: string;
+    code?: string;
+    toetscode?: string;
+    weging?: number;
+    type?: string;
+    periode?: number;
+  }>;
+  seResultaat?: RawResult;
+  toetssoortGemiddelden?: RawResult[];
+  afwijkendeOnderwijssoort?: string;
+  afwijkendEindjaar?: number;
+};
+
+export async function fetchExamOverview(
+  client: ApiClient,
+  leerlingId: number,
+  context: ExamContext,
+) {
+  const query = new URLSearchParams();
+  if (context.plaatsingUuid) query.set("plaatsing", context.plaatsingUuid);
+  if (context.lichtingUuid) query.set("lichting", context.lichtingUuid);
+  query.append("additional", "toetssoortafkorting");
+  const { items } = await client.getAll<RawExamVak>(
+    `/geldendexamendossierresultaten/leerling/cijferoverzicht/${leerlingId}`,
+    query,
+  );
+  return items
+    .filter((item) => item.vakkeuze?.vak)
+    .map((item) =>
+      compact({
+        vak: item.vakkeuze?.vak?.naam,
+        afkorting: item.vakkeuze?.vak?.afkorting,
+        vakUuid: item.vakkeuze?.vak?.UUID,
+        seResultaat: item.seResultaat ? mapResult(item.seResultaat) : undefined,
+        resultaten: (item.resultaten ?? []).map(mapResult),
+        nogTeBehalen: (item.overigeToetskolommen ?? []).map((kolom) =>
+          compact({
+            omschrijving: kolom.omschrijving,
+            toetscode: kolom.toetscode ?? kolom.code,
+            weging: kolom.weging,
+            type: kolom.type,
+            periode: kolom.periode,
+          }),
+        ),
+        toetssoortGemiddelden: (item.toetssoortGemiddelden ?? []).map(
+          mapResult,
+        ),
+        afwijkendeOnderwijssoort: item.afwijkendeOnderwijssoort,
+        afwijkendEindjaar: item.afwijkendEindjaar,
+      }),
+    )
+    .sort((a, b) => (a.vak ?? "").localeCompare(b.vak ?? ""));
+}
