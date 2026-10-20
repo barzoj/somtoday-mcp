@@ -280,3 +280,145 @@ export async function fetchGradeOverview(
       .sort((a, b) => (a.vak ?? "").localeCompare(b.vak ?? "")),
   };
 }
+
+export const SUBJECT_TYPES = [
+  "Toetskolom",
+  "SamengesteldeToetsKolom",
+  "Werkstukcijferkolom",
+  "Advieskolom",
+  "PeriodeGemiddeldeKolom",
+  "RapportGemiddeldeKolom",
+  "RapportCijferKolom",
+  "RapportToetskolom",
+  "SEGemiddeldeKolom",
+  "ToetssoortGemiddeldeKolom",
+] as const;
+
+const SUBJECT_ADDITIONALS = [
+  "vaknaam",
+  "resultaatkolom",
+  "heeftalternatiefniveau",
+  "naamalternatiefniveau",
+  "naamstandaardniveau",
+  "leerjaar",
+] as const;
+
+export type VakkeuzeView = {
+  vak?: string;
+  afkorting?: string;
+  vakUuid: string;
+  lichtingUuid?: string;
+  vrijstelling?: boolean;
+};
+
+type RawVakkeuze = {
+  vak?: { UUID?: string; naam?: string; afkorting?: string };
+  lichting?: { UUID?: string };
+  relevanteCijferLichting?: { UUID?: string };
+  vrijstelling?: boolean;
+};
+
+export async function fetchVakkeuzes(
+  client: ApiClient,
+  leerlingId: number,
+  peildatum: string,
+): Promise<VakkeuzeView[]> {
+  const { items } = await client.getAll<RawVakkeuze>(
+    "/vakkeuzes",
+    new URLSearchParams({
+      leerling: String(leerlingId),
+      actiefOpPeildatum: peildatum,
+    }),
+  );
+  return items
+    .filter((item) => item.vak?.UUID)
+    .map((item) =>
+      compact({
+        vak: item.vak?.naam,
+        afkorting: item.vak?.afkorting,
+        vakUuid: item.vak!.UUID!,
+        lichtingUuid: item.relevanteCijferLichting?.UUID ?? item.lichting?.UUID,
+        vrijstelling: item.vrijstelling || undefined,
+      }),
+    )
+    .sort((a, b) => (a.vak ?? "").localeCompare(b.vak ?? ""));
+}
+
+export function findVakkeuze(
+  vakken: VakkeuzeView[],
+  query: string,
+): VakkeuzeView {
+  const needle = query.trim().toLowerCase();
+  const exact = vakken.find(
+    (vak) =>
+      vak.vakUuid.toLowerCase() === needle ||
+      vak.afkorting?.toLowerCase() === needle ||
+      vak.vak?.toLowerCase() === needle,
+  );
+  if (exact) return exact;
+  const partial = vakken.filter((vak) =>
+    vak.vak?.toLowerCase().includes(needle),
+  );
+  if (partial.length === 1) return partial[0]!;
+  throw new Error(
+    partial.length > 1
+      ? `Several subjects match "${query}": ${partial.map((vak) => vak.vak).join(", ")}`
+      : `No subject matches "${query}". Subjects: ${vakken.map((vak) => `${vak.vak} (${vak.afkorting})`).join(", ") || "none"}`,
+  );
+}
+
+export function subjectQuery(dossier: Dossier): URLSearchParams {
+  const query = new URLSearchParams();
+  repeatedParams(
+    "additional",
+    dossier === "voortgang"
+      ? [...SUBJECT_ADDITIONALS, "periodeAfkorting"]
+      : SUBJECT_ADDITIONALS,
+    query,
+  );
+  repeatedParams("type", SUBJECT_TYPES, query);
+  query.set("sort", "desc-geldendResultaatCijferInvoer");
+  return query;
+}
+
+export async function fetchSubjectResults(
+  client: ApiClient,
+  leerlingId: number,
+  vak: VakkeuzeView,
+  dossier: Dossier,
+): Promise<ResultView[]> {
+  if (!vak.lichtingUuid) {
+    throw new Error(`No lichting known for ${vak.vak ?? vak.vakUuid}`);
+  }
+  const { items } = await client.getAll<RawResult>(
+    `${DOSSIER_PATH[dossier]}/vakresultaten/${leerlingId}/vak/${vak.vakUuid}/lichting/${vak.lichtingUuid}`,
+    subjectQuery(dossier),
+  );
+  return items.map(mapResult);
+}
+
+/** Column definitions, including columns without a result yet. Shape not fixture-verified, so simplified generically. */
+export async function fetchSubjectColumns(
+  client: ApiClient,
+  leerlingId: number,
+  vak: VakkeuzeView,
+  dossier: Dossier,
+): Promise<unknown[]> {
+  const { items } = await client.getAll<unknown>(
+    `${DOSSIER_PATH[dossier]}/resultaatkolommen/${leerlingId}/vak/${vak.vakUuid}/lichting/${vak.lichtingUuid}`,
+    subjectQuery(dossier),
+  );
+  return items;
+}
+
+export async function fetchDeeltoetsen(
+  client: ApiClient,
+  leerlingId: number,
+  samengesteldeToetsId: string,
+  dossier: Dossier,
+): Promise<ResultView[]> {
+  const { items } = await client.getAll<RawResult>(
+    `${DOSSIER_PATH[dossier]}/leerling/${leerlingId}/deeltoetsen/${samengesteldeToetsId}`,
+  );
+  return items.map(mapResult);
+}

@@ -11,6 +11,7 @@ import { homeworkTool } from "./tools/homework.js";
 import { lessonsTool } from "./tools/lessons.js";
 import { gradesLatestTool } from "./tools/grades-latest.js";
 import { gradesOverviewTool } from "./tools/grades-overview.js";
+import { subjectGradesTool } from "./tools/subject-grades.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -192,6 +193,24 @@ export function createServer(
       },
     },
     async (args) => gradesOverviewTool(ctx, args),
+  );
+
+  server.registerTool(
+    "subject_grades",
+    {
+      title: "Subject grades",
+      description:
+        "Everything for one subject: every result column (tests, assignments, period and report averages, SE averages) with weights and remarks, column definitions (also not-yet-graded ones), and the parts of composite tests. Both progress and exam dossier unless dossier is set. Without vak: the list of subjects.",
+      inputSchema: {
+        vak: z
+          .string()
+          .optional()
+          .describe("Subject name, abbreviation or uuid."),
+        dossier: z.enum(["voortgang", "examen"]).optional(),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => subjectGradesTool(ctx, args),
   );
 
   server.registerTool(
