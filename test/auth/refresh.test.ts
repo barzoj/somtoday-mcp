@@ -425,7 +425,11 @@ describe("file lock", () => {
       lock.withLock(section("a")),
       other.withLock(section("b")),
     ]);
-    expect(events).toEqual(["a-in", "a-out", "b-in", "b-out"]);
+    // Either order is fine; the sections must not overlap.
+    expect([
+      ["a-in", "a-out", "b-in", "b-out"],
+      ["b-in", "b-out", "a-in", "a-out"],
+    ]).toContainEqual(events);
   });
 
   it("takes over a stale lock file", async () => {
