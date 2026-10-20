@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/barzoj/somtoday-mcp/compare/v0.1.0...v0.1.1) (2026-10-20)
+
+
+### Miscellaneous Chores
+
+* **release:** drop release-as pin after 0.1.0 ([#43](https://github.com/barzoj/somtoday-mcp/issues/43)) ([8d7294c](https://github.com/barzoj/somtoday-mcp/commit/8d7294cd8620ced135bc1ed42a590414b247a189))
+
 ## [0.1.0](https://github.com/barzoj/somtoday-mcp/compare/v0.1.0...v0.1.0) (2026-10-20)
 
 

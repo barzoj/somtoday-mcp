@@ -1,6 +1,6 @@
 {
   "name": "somtoday-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Unofficial read-only MCP server for the Somtoday parent portal",
   "type": "module",
   "bin": {
