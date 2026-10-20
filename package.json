@@ -51,8 +51,8 @@
   "homepage": "https://github.com/barzoj/somtoday-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "playwright": "^1.56.1",
-    "zod": "^3.25.76"
+    "playwright": "^1.64.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
