@@ -141,7 +141,7 @@ npx -y somtoday-mcp login
 ```
 
 1. A browser window (your installed Chrome or Edge, else Playwright Chromium) opens on the regular Somtoday login page. Search for your school there, the same way as in the official app.
-2. Sign in as you normally would, including any two-step verification. You have 5 minutes.
+2. Sign in as you normally would, including any two-step verification. You have 10 minutes (the Cloudflare check and school search count too).
 3. When the window closes, the session is saved on your computer and the MCP server can use it.
 
 If you know your school's tenant UUID you can skip the school search with `npx -y somtoday-mcp login --school-uuid <uuid>`.

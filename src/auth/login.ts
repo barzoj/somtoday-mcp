@@ -157,7 +157,11 @@ export async function captureWithPlaywright(
   try {
     const redirect = new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new AuthFlowError("Login timed out after 5 minutes"));
+        reject(
+          new AuthFlowError(
+            `Login timed out after ${LOGIN_TIMEOUT_MS / 60_000} minutes`,
+          ),
+        );
       }, LOGIN_TIMEOUT_MS);
 
       const consider = (url: string) => {
