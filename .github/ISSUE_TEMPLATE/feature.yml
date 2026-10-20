@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest a read-only improvement
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project is **read-only**. Write operations (handing in homework, sending messages, reporting absence, changing settings) will not be accepted.
+
+        **Never paste Somtoday passwords or tokens.**
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that the current tools do not cover?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed read-only behavior
+      description: Describe the data or tool. Do not request write operations.
+    validations:
+      required: true
+  - type: checkboxes
+    id: readonly
+    attributes:
+      label: Scope
+      options:
+        - label: This request is read-only and does not require writing data to Somtoday.
+          required: true
+        - label: I have not included passwords, tokens, or anyone's personal data.
+          required: true
