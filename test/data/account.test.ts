@@ -6,6 +6,7 @@ const one = {
   huiswerkBekijkenAan: true,
   roosterBekijkenAan: true,
   cijfersBekijkenAan: false,
+  rights: {},
 };
 
 const two = {
@@ -13,6 +14,7 @@ const two = {
   huiswerkBekijkenAan: false,
   roosterBekijkenAan: true,
   cijfersBekijkenAan: true,
+  rights: {},
 };
 
 describe("child resolution", () => {

@@ -1,8 +1,18 @@
 import {
+  amsterdamYmd,
   dateInInclusiveRange,
+  dayOf,
+  eachDay,
   isoWeekParts,
+  isoWeeksInRange,
   sameAmsterdamDate,
 } from "../dates.js";
+import {
+  compactItem,
+  mapStudiewijzerItem,
+  type RawToekenning,
+  type StudiewijzerItemView,
+} from "./studiewijzer.js";
 import { htmlToPlain } from "../html.js";
 import { HOMEWORK_ADDITIONALS } from "../constants.js";
 import { repeatedParams, type ApiClient } from "./client.js";
@@ -142,4 +152,110 @@ export async function fetchHomeworkSets(
     week: weekItems.body.items ?? [],
     inlever: inlever.body.items ?? [],
   };
+}
+
+export type HomeworkDay = {
+  datum: string;
+  items: StudiewijzerItemView[];
+  /** Hand-in assignments whose deadline falls on this day. */
+  deadlines: StudiewijzerItemView[];
+};
+
+export type HomeworkRange = {
+  from: string;
+  to: string;
+  days: HomeworkDay[];
+  /** Week tasks (studiewijzer items planned for a whole week) per ISO week. */
+  weken: Array<{ jaar: number; week: number; items: StudiewijzerItemView[] }>;
+};
+
+/**
+ * Everything in the study planner for a date range, the way the portal loads
+ * it: per ISO week the lesson and day items (`jaarWeek`) and the week items
+ * (`weeknummer`), plus all hand-ins, each list fully paged.
+ */
+export async function fetchHomeworkRange(
+  client: ApiClient,
+  leerlingId: number,
+  from: string,
+  to: string,
+): Promise<HomeworkRange> {
+  const weeks = isoWeeksInRange(from, to);
+  const perWeek = await Promise.all(
+    weeks.map(async ({ year, week }) => {
+      const jaarWeekQuery = homeworkQuery(leerlingId);
+      jaarWeekQuery.set("jaarWeek", `${year}~${week}`);
+      const weekQuery = homeworkQuery(leerlingId);
+      weekQuery.set("weeknummer", String(week));
+      const [afspraak, dag, weekItems] = await Promise.all([
+        client.getAll<RawToekenning>(
+          "/studiewijzeritemafspraaktoekenningen",
+          jaarWeekQuery,
+        ),
+        client.getAll<RawToekenning>(
+          "/studiewijzeritemdagtoekenningen",
+          jaarWeekQuery,
+        ),
+        client.getAll<RawToekenning>(
+          "/studiewijzeritemweektoekenningen",
+          weekQuery,
+        ),
+      ]);
+      return {
+        year,
+        week,
+        dated: [...afspraak.items, ...dag.items],
+        weekItems: weekItems.items.filter(
+          (item) =>
+            (item.weeknummerVanaf ?? week) <= week &&
+            week <= (item.weeknummerTm ?? week),
+        ),
+      };
+    }),
+  );
+  const handIns = await client.getAll<RawToekenning>(
+    "/studiewijzeritemdagtoekenningen",
+    handInQuery(leerlingId),
+  );
+
+  const map = (raw: RawToekenning) =>
+    compactItem(mapStudiewijzerItem(raw, leerlingId, amsterdamYmd));
+  const seen = new Set<string>();
+  const dated = perWeek
+    .flatMap((entry) => entry.dated)
+    .map(map)
+    .filter((item) => {
+      const key = `${item.soort}:${item.toekenningId ?? JSON.stringify(item)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  const deadlines = handIns.items.map(map);
+
+  const days = eachDay(from, to).map((datum) => ({
+    datum,
+    items: dated.filter((item) => item.datum === datum).sort(bySortering),
+    deadlines: deadlines.filter(
+      (item) => dayOf(item.inlevermoment?.eind) === datum,
+    ),
+  }));
+  return {
+    from,
+    to,
+    days,
+    weken: perWeek
+      .map((entry) => ({
+        jaar: entry.year,
+        week: entry.week,
+        items: entry.weekItems.map(map).sort(bySortering),
+      }))
+      .filter((entry) => entry.items.length > 0),
+  };
+}
+
+function bySortering(a: StudiewijzerItemView, b: StudiewijzerItemView): number {
+  return (
+    (a.datumTijd ?? "").localeCompare(b.datumTijd ?? "") ||
+    (a.sortering ?? 0) - (b.sortering ?? 0)
+  );
 }

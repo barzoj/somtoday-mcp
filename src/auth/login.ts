@@ -1,19 +1,23 @@
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
-import { LOGIN_TIMEOUT_MS } from "../constants.js";
+import { launchLoginBrowser } from "./browser.js";
+import { API_PREFIX, LOGIN_TIMEOUT_MS } from "../constants.js";
 import { AuthFlowError } from "../errors.js";
-import { logError } from "../log.js";
-import { challengeFromVerifier, generateState, generateVerifier } from "../pkce.js";
+import { userAgent } from "../packageVersion.js";
+import {
+  challengeFromVerifier,
+  generateState,
+  generateVerifier,
+} from "../pkce.js";
 import { buildAuthorizeUrl } from "./authorize.js";
 import { isCallbackUrl, parseRedirectUrl } from "./redirect.js";
-import { fetchSchools, matchSchools, schoolLabel, type School } from "./school.js";
-import { exchangeAuthorizationCode } from "./tokens.js";
+import { exchangeAuthorizationCode, type TokenSet } from "./tokens.js";
 import type { SessionManager } from "./session.js";
 
 export type LoginIo = {
-  ask: (prompt: string) => Promise<string>;
   write: (line: string) => void;
 };
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type BrowserCapture = (authorizeUrl: string) => Promise<string>;
 
@@ -22,15 +26,15 @@ export async function runLogin(options: {
   fetchFn?: typeof fetch;
   io?: LoginIo;
   captureRedirect?: BrowserCapture;
+  /**
+   * Optional tenant UUID to skip Somtoday's school picker. Without it the
+   * login page shows its own school search, like the official app.
+   */
+  schoolUuid?: string;
 }): Promise<void> {
   const fetchFn = options.fetchFn ?? fetch;
-  const createdIo = options.io ? null : defaultIo();
-  const io = options.io ?? createdIo!.io;
-  try {
-    await loginWithIo({ ...options, io, fetchFn });
-  } finally {
-    await createdIo?.close();
-  }
+  const io = options.io ?? { write: (line: string) => console.log(line) };
+  await loginWithIo({ ...options, io, fetchFn });
 }
 
 async function loginWithIo(options: {
@@ -38,10 +42,13 @@ async function loginWithIo(options: {
   fetchFn: typeof fetch;
   io: LoginIo;
   captureRedirect?: BrowserCapture;
+  schoolUuid?: string;
 }): Promise<void> {
   const { fetchFn, io } = options;
-  const schools = await fetchSchools(fetchFn);
-  const school = await pickSchool(schools, io);
+  const schoolUuid = options.schoolUuid?.trim() || undefined;
+  if (schoolUuid && !UUID_RE.test(schoolUuid)) {
+    throw new AuthFlowError("--school-uuid must be a UUID");
+  }
 
   const verifier = generateVerifier();
   const challenge = challengeFromVerifier(verifier);
@@ -49,11 +56,17 @@ async function loginWithIo(options: {
   const authorizeUrl = buildAuthorizeUrl({
     codeChallenge: challenge,
     state,
-    tenantUuid: school.uuid,
+    tenantUuid: schoolUuid,
   });
 
-  io.write("Opening a headed Chromium window. Type your password there, not here.");
-  io.write("If Chromium is missing: npx playwright install chromium");
+  io.write(
+    schoolUuid
+      ? "Opening a browser window. Type your password there, not here."
+      : "Opening a browser window. Search for your school and sign in there; never type your password here.",
+  );
+  io.write(
+    "Uses your installed Google Chrome or Edge when present, otherwise Playwright Chromium (npx playwright install chromium).",
+  );
 
   const capture = options.captureRedirect ?? captureWithPlaywright;
   let redirectUrl: string;
@@ -74,60 +87,59 @@ async function loginWithIo(options: {
     throw new AuthFlowError("OAuth state mismatch");
   }
 
-  let code = parsed.code;
+  const code = parsed.code;
   try {
     const tokens = await exchangeAuthorizationCode({
       code,
       verifier,
-      tenantUuid: school.uuid,
+      tenantUuid: schoolUuid,
       fetchFn,
     });
+    const label =
+      tokens.schoolName ?? (await schoolNameFromApi(tokens, fetchFn));
     await options.session.persist(tokens, {
-      tenantUuid: school.uuid,
-      schoolLabel: schoolLabel(school),
+      tenantUuid: tokens.tenantUuid ?? schoolUuid,
+      schoolLabel: label ?? "Somtoday",
     });
-    io.write("Login stored. You can close this terminal and use the MCP server.");
+    if (label) io.write(`School: ${label}`);
+    io.write(
+      "Login stored. You can close this terminal and use the MCP server.",
+    );
   } finally {
     wipe(code);
     wipe(verifier);
-    code = "";
   }
 }
 
-async function pickSchool(schools: School[], io: LoginIo): Promise<School> {
-  for (;;) {
-    const query = (await io.ask("School name: ")).trim();
-    const matches = matchSchools(schools, query);
-    if (matches.length === 1) {
-      const school = matches[0]!;
-      io.write(`Matched: ${schoolLabel(school)}`);
-      return school;
-    }
-    if (matches.length === 0) {
-      io.write("No school matched. Try a more specific name.");
-      continue;
-    }
-    io.write("Several schools matched:");
-    for (const school of matches.slice(0, 12)) {
-      io.write(`- ${schoolLabel(school)}`);
-    }
-    io.write("Ask again with a more specific name.");
-  }
-}
-
-function defaultIo(): { io: LoginIo; close: () => Promise<void> } {
-  const rl = createInterface({ input, output });
-  return {
-    io: {
-      ask: (prompt) => rl.question(prompt),
-      write: (line) => {
-        console.log(line);
+/** Best effort: school name from the parent's school data, for display only. */
+async function schoolNameFromApi(
+  tokens: TokenSet,
+  fetchFn: typeof fetch,
+): Promise<string | undefined> {
+  try {
+    const response = await fetchFn(
+      `${tokens.apiBaseUrl}${API_PREFIX}/leerlingen/verzorger/schoolgegevens`,
+      {
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`,
+          Accept: "application/vnd.topicus.platinum+json",
+          "User-Agent": userAgent(),
+        },
+        signal: AbortSignal.timeout(15_000),
       },
-    },
-    close: async () => {
-      rl.close();
-    },
-  };
+    );
+    if (!response.ok) return undefined;
+    const body = (await response.json()) as unknown;
+    const first = Array.isArray(body)
+      ? (body[0] as Record<string, unknown> | undefined)
+      : undefined;
+    const name = first?.instellingsnaam;
+    if (typeof name !== "string" || !name.trim()) return undefined;
+    const plaats = typeof first?.plaats === "string" ? first.plaats : "";
+    return plaats ? `${name.trim()} (${plaats})` : name.trim();
+  } catch {
+    return undefined;
+  }
 }
 
 function wipe(value: string): void {
@@ -136,15 +148,20 @@ function wipe(value: string): void {
   void value.length;
 }
 
-export async function captureWithPlaywright(authorizeUrl: string): Promise<string> {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: false });
-  const page = await browser.newPage();
+export async function captureWithPlaywright(
+  authorizeUrl: string,
+): Promise<string> {
+  const browser = await launchLoginBrowser();
+  const page = browser.page;
 
   try {
     const redirect = new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new AuthFlowError("Login timed out after 5 minutes"));
+        reject(
+          new AuthFlowError(
+            `Login timed out after ${LOGIN_TIMEOUT_MS / 60_000} minutes`,
+          ),
+        );
       }, LOGIN_TIMEOUT_MS);
 
       const consider = (url: string) => {
@@ -162,15 +179,15 @@ export async function captureWithPlaywright(authorizeUrl: string): Promise<strin
     await page.goto(authorizeUrl, { waitUntil: "domcontentloaded" });
     return await redirect;
   } finally {
-    await browser.close().catch((error: unknown) => {
-      logError("browser close failed", error);
-    });
+    await browser.close();
   }
 }
 
 export function assertNoPasswordArgs(argv: string[]): void {
   const banned = ["--password", "-p", "--passwd"];
-  if (argv.some((arg) => banned.includes(arg) || arg.startsWith("--password="))) {
+  if (
+    argv.some((arg) => banned.includes(arg) || arg.startsWith("--password="))
+  ) {
     throw new AuthFlowError("Passwords are not accepted on the command line");
   }
 }

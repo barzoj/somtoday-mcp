@@ -1,4 +1,9 @@
-import type { SecretStore, StoredSession } from "./store.js";
+import {
+  inspectByLoading,
+  type SecretStore,
+  type StoreInspection,
+  type StoredSession,
+} from "./store.js";
 
 export class MemorySecretStore implements SecretStore {
   private session: StoredSession | null = null;
@@ -13,5 +18,9 @@ export class MemorySecretStore implements SecretStore {
 
   async delete(): Promise<void> {
     this.session = null;
+  }
+
+  inspect(): Promise<StoreInspection> {
+    return inspectByLoading(this, "memory");
   }
 }

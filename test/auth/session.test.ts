@@ -40,7 +40,9 @@ describe("session token reuse and refresh", () => {
     const client = new ApiClient(session, fetchFn);
     await client.get("/account/me");
     expect(calls[0]?.url).toBe(TOKEN_URL);
-    expect(await store.load()).toMatchObject({ refreshToken: "rotated-refresh" });
+    expect(await store.load()).toMatchObject({
+      refreshToken: "rotated-refresh",
+    });
   });
 
   it("refreshes once and retries once on API 401, then stops", async () => {

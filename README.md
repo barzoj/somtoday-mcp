@@ -14,14 +14,34 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 
 ## What it does
 
-| Tool       | What you get                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `whoami`   | Your school label, the linked children with their numeric ids, and which portal sections are visible to you. |
-| `lessons`  | The timetable for one day, and whether that day is a school holiday.                                         |
-| `homework` | Homework and study-planner items for one day: per lesson, per day, per week, and hand-in assignments.        |
-| `grades`   | The most recent results (up to 30) and averages per subject.                                                 |
+| Tool                  | What you get                                                                                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `whoami`              | Your school label, the linked children with their numeric ids, and which portal sections are visible to you.                                                                                                                                                             |
+| `lessons`             | The timetable for one day, and whether that day is a school holiday.                                                                                                                                                                                                     |
+| `homework`            | What to do and learn on which day: every study-planner item for a date range (default today + 6 days, max 42), grouped by day, with description, learning goals, time estimate, test type, attachments (links), external links, hand-in window/status and the done tick. |
+| `grades`              | The most recent results (up to 30) and averages per subject.                                                                                                                                                                                                             |
+| `assignments`         | All hand-in assignments with window, status (upcoming, to do, waiting for review, approved), late flag, description, attachments and links. `status=open` keeps the ones still to do.                                                                                    |
+| `assignment_detail`   | Submissions (date, status, file or link) and teacher reactions for one assignment.                                                                                                                                                                                       |
+| `study_material`      | Study material per subject: lesson material from the planner by date, year attachments by folder (file links), external links, and methods/publisher links. No arguments lists the subjects; `vak` picks one; `all=true` fetches every subject.                          |
+| `schedule`            | Timetable for a date range (default today + 6 days, max 42): time, lesson hour, subject, room, teachers, type (test, exam, parent evening …), lesson notes, changes and cancellations, attachments, holidays.                                                            |
+| `grades_latest`       | Newest results first with subject, column, description, grade, weight, test type, period, date, remarks and resits; `limit` (default 50, max 1000) and `dossier=examen` for SE results.                                                                                  |
+| `grades_overview`     | Full grade overview for a school year: every subject, every result per period, report grades, weights and remarks. `schooljaar` picks an earlier year.                                                                                                                   |
+| `subject_grades`      | Everything for one subject: every result column with weights and remarks, column definitions (also not yet graded), composite-test parts, for the progress and exam dossier. No `vak` lists the subjects.                                                                |
+| `exam_grades`         | School-exam dossier (PTA/SE): per subject the SE average, every SE result, tests still to come and test-type averages.                                                                                                                                                   |
+| `absence`             | Absence and registrations for the school year or grading period (absent, late, removed, homework/materials not in order) with counts and entries, plus active measures.                                                                                                  |
+| `messages`            | Messages, read-only: newest conversations (subject, sender, date, unread, preview; `zoek`/`ongelezen` filters) or one full thread with `conversatieId`. Never marks anything as read.                                                                                    |
+| `news`                | School news items (newest first, as text) and the unread count.                                                                                                                                                                                                          |
+| `announcements`       | Somtoday-wide announcements shown in the portal.                                                                                                                                                                                                                         |
+| `children`            | Linked children with profile, class, school data (mentors, year, programme), current placement and visible portal sections.                                                                                                                                              |
+| `school_info`         | School contact data and the school's information pages; `paginaId` opens one page.                                                                                                                                                                                       |
+| `teachers`            | Staff you can message, with the subjects they teach your child.                                                                                                                                                                                                          |
+| `signing_requests`    | Digital signing requests (read-only; nothing is signed).                                                                                                                                                                                                                 |
+| `parent_evening`      | Parent-evening details (slots, teachers); finds invitations in your messages (read-only; nothing is booked).                                                                                                                                                             |
+| `consents`            | Consents such as use of photos, as set in the portal (read-only).                                                                                                                                                                                                        |
+| `download_attachment` | Read an attachment by `fileUrl`: https Somtoday hosts only (extend with `SOMTODAY_MCP_ATTACHMENT_HOSTS`), max 10 MB, no token sent; text from PDF/text/HTML/CSV/JSON.                                                                                                    |
+| `auth_status`         | Whether a session is stored, where, and how the last token renewal went. Never returns tokens.                                                                                                                                                                           |
 
-- `lessons` and `homework` take an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and default to **tomorrow**.
+- `lessons` takes an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and defaults to **tomorrow**. Range tools take `date`, or `from`/`to`.
 - If more than one child is linked to your account, pass `leerlingId` (the numeric id from `whoami`).
 - If a section is switched off for your account, the tool says so and does not call that part of the API.
 
@@ -30,7 +50,7 @@ Not included: news, messages, absence reporting, parent-evening scheduling, uplo
 ## Read-only and privacy
 
 - Tools only send `GET` requests. Nothing is written, submitted, or marked as read.
-- The server talks only to Somtoday's login and API servers. During login it also downloads the public list of schools (from Somtoday, or a mirror on GitHub if that is unavailable).
+- The server talks only to Somtoday's login and API servers.
 - No telemetry or analytics.
 - Your password is typed only into the Somtoday login page in a browser window. No tool, CLI flag, environment variable, or prompt ever asks for it.
 - Tools never return tokens.
@@ -48,11 +68,13 @@ npx -y somtoday-mcp            # start the MCP server (used by your MCP client)
 npx -y somtoday-mcp login      # sign in, once, in a terminal
 ```
 
-Login uses Playwright's Chromium. Install it once:
+Login opens a normal browser window. When **Google Chrome** (or else **Microsoft Edge**) is installed, that browser is used, with a fresh temporary profile that is deleted afterwards; it passes Somtoday's Cloudflare "Verify you are human" check more reliably. Only without Chrome/Edge does it fall back to Playwright's bundled Chromium; install that once in that case:
 
 ```bash
 npx playwright install chromium
 ```
+
+The window is started without the "controlled by automated software" markers; nothing else about the browser is changed.
 
 From a checkout:
 
@@ -61,7 +83,7 @@ git clone https://github.com/barzoj/somtoday-mcp.git
 cd somtoday-mcp
 npm install
 npm run build
-npx playwright install chromium
+npx playwright install chromium   # only needed without Chrome/Edge
 node dist/cli.js login
 ```
 
@@ -118,15 +140,29 @@ Run login in a terminal, not from inside your MCP client:
 npx -y somtoday-mcp login
 ```
 
-1. Type (part of) your school's name. The CLI looks it up in Somtoday's public school list and asks again if several schools match.
-2. A Chromium window opens on the regular Somtoday login page. Sign in there as you normally would, including any two-step verification. You have 5 minutes.
+1. A browser window (your installed Chrome or Edge, else Playwright Chromium) opens on the regular Somtoday login page. Search for your school there, the same way as in the official app.
+2. Sign in as you normally would, including any two-step verification. You have 10 minutes (the Cloudflare check and school search count too).
 3. When the window closes, the session is saved on your computer and the MCP server can use it.
+
+If you know your school's tenant UUID you can skip the school search with `npx -y somtoday-mcp login --school-uuid <uuid>`.
 
 If a tool is called before you have signed in, or after the saved session stops working, it returns:
 
 `run `npx somtoday-mcp login` in a terminal`
 
-Run login again in that case. Session renewal is still being improved, so for now you may need to sign in again more often than you would in the official app.
+Run login again in that case. If Somtoday cannot be reached, tools say so instead of asking you to log in.
+
+### Commands
+
+```bash
+npx -y somtoday-mcp status           # where the session is stored, last renewal result (no tokens)
+npx -y somtoday-mcp status --check   # also renews the token and calls the API once
+npx -y somtoday-mcp logout           # delete the stored session from this computer
+```
+
+The same diagnostics are available to your MCP client through the `auth_status` tool.
+
+Several MCP clients (for example two Cursor windows) can share one session: token renewal is serialized with a lock file in the config directory, and each renewal re-reads the stored session first.
 
 <details>
 <summary>Technical details</summary>
@@ -134,29 +170,26 @@ Run login again in that case. Session renewal is still being improved, so for no
 - OAuth 2.0 authorization code flow with PKCE (S256), using the public (secret-less) client id and redirect URI of Somtoday's native app. There is no client secret and nothing uses the Somtoday Connect partner API.
 - The login page redirects to a custom `somtoday://` URL; Playwright reads the authorization code from that request inside the browser window. No local web server is started.
 - Short-lived access tokens are kept in memory only.
-- The school list comes from `servers.somtoday.nl/organisaties.json`, with a public mirror as fallback when that host is unavailable.
+- The school is chosen on Somtoday's own login page. The school's tenant comes from the token response (`somtoday_tenant`), and the label shown by `whoami` and `status` from the `orgname` claim (or, failing that, the school data of your account).
 
 </details>
 
 ### Where the session is stored
 
-| Platform        | Location                                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------------------- |
-| macOS           | Login Keychain, service `somtoday-mcp` (falls back to the file below if the keychain cannot be used)           |
-| Linux / Windows | `session.json` with `0600` permissions in `$XDG_CONFIG_HOME/somtoday-mcp/` (default `~/.config/somtoday-mcp/`) |
+| Platform        | Location                                                                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS           | Login Keychain, service `somtoday-mcp`. Every write is read back and checked; if that fails, or `SOMTODAY_MCP_DISABLE_KEYCHAIN=1` is set, the file below is used |
+| Linux / Windows | `session.json` with `0600` permissions in `$XDG_CONFIG_HOME/somtoday-mcp/` (default `~/.config/somtoday-mcp/`)                                                   |
 
-To sign out, delete the stored session:
-
-```bash
-security delete-generic-password -s somtoday-mcp   # macOS keychain
-rm ~/.config/somtoday-mcp/session.json             # file fallback
-```
+To sign out, run `npx -y somtoday-mcp logout`.
 
 ### Environment variables
 
-| Variable          | Effect                                                      |
-| ----------------- | ----------------------------------------------------------- |
-| `XDG_CONFIG_HOME` | Base directory for the file fallback (default `~/.config`). |
+| Variable                        | Effect                                                         |
+| ------------------------------- | -------------------------------------------------------------- |
+| `XDG_CONFIG_HOME`               | Base directory for the file fallback (default `~/.config`).    |
+| `SOMTODAY_MCP_CONFIG_DIR`       | Use this directory instead of `$XDG_CONFIG_HOME/somtoday-mcp`. |
+| `SOMTODAY_MCP_DISABLE_KEYCHAIN` | Set to `1` to skip the macOS Keychain and always use the file. |
 
 Logs go to stderr (stdout is reserved for the MCP protocol) and redact token-like values.
 

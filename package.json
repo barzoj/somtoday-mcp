@@ -17,13 +17,15 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm run build && npm test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "smoke:live": "node scripts/live-smoke.mjs",
+    "prepack": "npm run build"
   },
   "publishConfig": {
     "access": "public"
@@ -50,6 +52,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
     "playwright": "^1.56.1",
+    "unpdf": "^1.7.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

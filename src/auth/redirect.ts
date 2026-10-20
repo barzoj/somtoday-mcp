@@ -7,9 +7,7 @@ export function isCallbackUrl(url: string): boolean {
   if (!url.includes("callback")) {
     return false;
   }
-  return (
-    url.startsWith("somtodayleerling://") || url.startsWith("somtoday://")
-  );
+  return url.startsWith("somtodayleerling://") || url.startsWith("somtoday://");
 }
 
 export function parseRedirectUrl(url: string): ParsedRedirect {
