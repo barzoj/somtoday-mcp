@@ -1,8 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { createDefaultStore } from "./auth/keychain-store.js";
-import { SessionManager } from "./auth/session.js";
+import { createDefaultSession } from "./auth/default-session.js";
+import type { SessionManager } from "./auth/session.js";
+import { authStatusTool } from "./tools/auth-status.js";
 import { createToolContext } from "./tools/context.js";
 import { gradesTool } from "./tools/grades.js";
 import { homeworkTool } from "./tools/homework.js";
@@ -24,7 +25,7 @@ const leerlingArg = z
   );
 
 export function createServer(
-  session = new SessionManager(createDefaultStore()),
+  session: SessionManager = createDefaultSession(),
 ): McpServer {
   const ctx = createToolContext(session);
   const server = new McpServer({
@@ -74,6 +75,22 @@ export function createServer(
       inputSchema: { leerlingId: leerlingArg },
     },
     async ({ leerlingId }) => gradesTool(ctx, { leerlingId }),
+  );
+
+  server.registerTool(
+    "auth_status",
+    {
+      title: "Auth status",
+      description:
+        "Whether a Somtoday session is stored, where (keychain or file), and the outcome of the last token renewal. Never returns tokens. Set check=true to renew the token and call the API once.",
+      inputSchema: {
+        check: z
+          .boolean()
+          .optional()
+          .describe("Renew the access token and call GET /account/me once."),
+      },
+    },
+    async ({ check }) => authStatusTool(ctx, { check }),
   );
 
   return server;

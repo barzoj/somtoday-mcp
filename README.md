@@ -14,12 +14,13 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 
 ## What it does
 
-| Tool       | What you get                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `whoami`   | Your school label, the linked children with their numeric ids, and which portal sections are visible to you. |
-| `lessons`  | The timetable for one day, and whether that day is a school holiday.                                         |
-| `homework` | Homework and study-planner items for one day: per lesson, per day, per week, and hand-in assignments.        |
-| `grades`   | The most recent results (up to 30) and averages per subject.                                                 |
+| Tool          | What you get                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `whoami`      | Your school label, the linked children with their numeric ids, and which portal sections are visible to you. |
+| `lessons`     | The timetable for one day, and whether that day is a school holiday.                                         |
+| `homework`    | Homework and study-planner items for one day: per lesson, per day, per week, and hand-in assignments.        |
+| `grades`      | The most recent results (up to 30) and averages per subject.                                                 |
+| `auth_status` | Whether a session is stored, where, and how the last token renewal went. Never returns tokens.               |
 
 - `lessons` and `homework` take an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and default to **tomorrow**.
 - If more than one child is linked to your account, pass `leerlingId` (the numeric id from `whoami`).
@@ -126,7 +127,19 @@ If a tool is called before you have signed in, or after the saved session stops 
 
 `run `npx somtoday-mcp login` in a terminal`
 
-Run login again in that case. Session renewal is still being improved, so for now you may need to sign in again more often than you would in the official app.
+Run login again in that case. If Somtoday cannot be reached, tools say so instead of asking you to log in.
+
+### Commands
+
+```bash
+npx -y somtoday-mcp status           # where the session is stored, last renewal result (no tokens)
+npx -y somtoday-mcp status --check   # also renews the token and calls the API once
+npx -y somtoday-mcp logout           # delete the stored session from this computer
+```
+
+The same diagnostics are available to your MCP client through the `auth_status` tool.
+
+Several MCP clients (for example two Cursor windows) can share one session: token renewal is serialized with a lock file in the config directory, and each renewal re-reads the stored session first.
 
 <details>
 <summary>Technical details</summary>
@@ -145,12 +158,7 @@ Run login again in that case. Session renewal is still being improved, so for no
 | macOS           | Login Keychain, service `somtoday-mcp`. Every write is read back and checked; if that fails, or `SOMTODAY_MCP_DISABLE_KEYCHAIN=1` is set, the file below is used |
 | Linux / Windows | `session.json` with `0600` permissions in `$XDG_CONFIG_HOME/somtoday-mcp/` (default `~/.config/somtoday-mcp/`)                                                   |
 
-To sign out, delete the stored session:
-
-```bash
-security delete-generic-password -s somtoday-mcp   # macOS keychain
-rm ~/.config/somtoday-mcp/session.json             # file fallback
-```
+To sign out, run `npx -y somtoday-mcp logout`.
 
 ### Environment variables
 

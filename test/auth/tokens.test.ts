@@ -7,7 +7,6 @@ import {
   refreshAccessToken,
 } from "../../src/auth/tokens.js";
 import {
-  FALLBACK_CLIENT_ID,
   NATIVE_CLIENT_ID,
   REDIRECT_URI,
   SCHOOLS_URL,
@@ -131,7 +130,7 @@ describe("refresh", () => {
 
     const body = formBody(calls[0]?.init);
     expect(body.get("client_id")).toBe("stored-client-from-login");
-    expect(body.get("client_id")).not.toBe(FALLBACK_CLIENT_ID);
+    expect(body.get("client_id")).not.toMatch(/^D50E/i);
     expect(body.get("grant_type")).toBe("refresh_token");
     expect(body.get("scope")).toBe("openid");
   });

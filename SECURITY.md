@@ -19,10 +19,7 @@ Do not send vulnerability reports to a personal email address.
 If you think a token was exposed, sign out of Somtoday in the browser (or change your password) and delete the stored session:
 
 ```bash
-# macOS
-security delete-generic-password -s somtoday-mcp
-# fallback file
-rm ~/.config/somtoday-mcp/session.json
+npx somtoday-mcp logout
 ```
 
 ## Scope

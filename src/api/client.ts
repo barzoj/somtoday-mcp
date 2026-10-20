@@ -18,18 +18,18 @@ export class ApiClient {
   async get<T>(path: string, query?: URLSearchParams): Promise<ApiResponse<T>> {
     const url = await this.url(path, query);
     const first = await this.send(url);
-    if (first.status !== 401) {
-      return this.read(first);
+    if (!(await shouldRetryWithNewToken(first.response))) {
+      return this.read(first.response);
     }
 
-    this.session.clearAccessToken();
-    await this.session.refresh();
+    // 401, or a 403 without a body: renew the access token (once) and retry once.
+    await this.session.refreshAfterRejection(first.token);
     const retry = await this.send(url);
-    if (retry.status === 401) {
+    if (retry.response.status === 401) {
       this.session.clearAccessToken();
-      throw new LoginRequiredError();
+      throw new LoginRequiredError("API rejected a freshly renewed token");
     }
-    return this.read(retry);
+    return this.read(retry.response);
   }
 
   private async url(path: string, query?: URLSearchParams): Promise<string> {
@@ -44,15 +44,18 @@ export class ApiClient {
     return target.toString();
   }
 
-  private async send(url: string): Promise<Response> {
+  private async send(
+    url: string,
+  ): Promise<{ response: Response; token: string }> {
     const token = await this.session.getAccessToken();
-    return this.fetchFn(url, {
+    const response = await this.fetchFn(url, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: ACCEPT,
       },
     });
+    return { response, token };
   }
 
   private async read<T>(response: Response): Promise<ApiResponse<T>> {
@@ -66,6 +69,21 @@ export class ApiClient {
       contentRange: response.headers.get("content-range") ?? undefined,
     };
   }
+}
+
+async function shouldRetryWithNewToken(response: Response): Promise<boolean> {
+  if (response.status === 401) {
+    return true;
+  }
+  if (response.status !== 403) {
+    return false;
+  }
+  // A 403 with a body is a real permission answer (e.g. no studiewijzer yet).
+  const body = await response
+    .clone()
+    .text()
+    .catch(() => "");
+  return body.trim() === "";
 }
 
 export function parseContentRangeTotal(header?: string): number | undefined {
