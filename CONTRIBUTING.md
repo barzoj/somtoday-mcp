@@ -76,3 +76,13 @@ npm run build
 npm test
 npm run test:coverage
 ```
+
+## Live smoke test
+
+`scripts/live-smoke.mjs` calls every tool against your own signed-in session and prints only shapes: ok/error, item counts, top-level keys and the hostnames of attachment links. It never prints values.
+
+```bash
+npm run build
+SOMTODAY_MCP_CONFIG_DIR=/path/to/session-dir npm run smoke:live          # all tools
+SOMTODAY_MCP_CONFIG_DIR=/path/to/session-dir npm run smoke:live homework # one tool
+```

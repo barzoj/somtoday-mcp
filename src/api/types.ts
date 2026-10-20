@@ -1,5 +1,7 @@
 export type EloRestricties = {
   leerlingId?: number;
+  vestigingsId?: number;
+  [flag: string]: unknown;
   huiswerkBekijkenAan?: boolean;
   roosterBekijkenAan?: boolean;
   cijfersBekijkenAan?: boolean;

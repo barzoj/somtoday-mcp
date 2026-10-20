@@ -12,6 +12,7 @@ export const DEFAULT_API_BASE = "https://api.somtoday.nl";
 export const API_PREFIX = "/rest/v1";
 
 export const ACCEPT = "application/vnd.topicus.platinum+json; charset=utf-8";
+export const ACCEPT_JSON = "application/json";
 
 export const KEYCHAIN_SERVICE = "somtoday-mcp";
 export const KEYCHAIN_ACCOUNT = "session";

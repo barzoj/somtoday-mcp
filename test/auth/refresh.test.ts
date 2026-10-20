@@ -358,7 +358,7 @@ describe("API retries", () => {
     const session = new SessionManager(store, fetchFn, () => NOW);
     session.seedAccessToken("old-access", NOW + 3_600_000);
     await expect(new ApiClient(session, fetchFn).get("/x")).rejects.toThrow(
-      "API HTTP 403",
+      "HTTP 403",
     );
     expect(apiCalls).toHaveLength(1);
     expect(server.used).toHaveLength(0);

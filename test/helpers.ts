@@ -94,3 +94,74 @@ export function oneRestrictie(id = 4242, flags = true) {
     },
   };
 }
+
+export type Route = [
+  RegExp,
+  (url: URL, init?: RequestInit) => Response | Promise<Response>,
+];
+
+/**
+ * Fake fetch that answers by URL pattern (order independent). Unmatched URLs
+ * fail the test. Records every call, including headers.
+ */
+export function routedFetch(routes: Route[]): {
+  fetchFn: typeof fetch;
+  calls: Array<{ url: URL; init?: RequestInit; headers: Headers }>;
+} {
+  const calls: Array<{ url: URL; init?: RequestInit; headers: Headers }> = [];
+  const fetchFn: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    calls.push({ url, init, headers: new Headers(init?.headers) });
+    const route = routes.find(([pattern]) =>
+      pattern.test(url.pathname + url.search),
+    );
+    if (!route) {
+      throw new Error(`Unexpected fetch ${url.pathname}${url.search}`);
+    }
+    return route[1](url, init);
+  };
+  return { fetchFn, calls };
+}
+
+/** `{items}` list answer with a Content-Range like the API sends. */
+export function listResponse(items: unknown[], total = items.length): Response {
+  const end = Math.max(items.length - 1, 0);
+  return jsonResponse(
+    206,
+    { items },
+    {
+      "content-range": `items 0-${end}/${total}`,
+    },
+  );
+}
+
+/** account/me answer for one child with every section switched on. */
+export function accountMe(id = 4242, rights: Record<string, boolean> = {}) {
+  return jsonResponse(200, {
+    additionalObjects: {
+      restricties: {
+        items: [
+          {
+            leerlingId: id,
+            vestigingsId: 77,
+            huiswerkBekijkenAan: true,
+            roosterBekijkenAan: true,
+            cijfersBekijkenAan: true,
+            ...rights,
+          },
+        ],
+      },
+    },
+  });
+}
+
+/** Parse the JSON body of a successful tool result. */
+export function toolJson(result: {
+  content: Array<{ text: string }>;
+  isError?: boolean;
+}): Record<string, unknown> {
+  if (result.isError) {
+    throw new Error(`tool error: ${result.content[0]?.text}`);
+  }
+  return JSON.parse(result.content[0]!.text) as Record<string, unknown>;
+}

@@ -6,6 +6,9 @@ export type ChildAccess = {
   huiswerkBekijkenAan: boolean;
   roosterBekijkenAan: boolean;
   cijfersBekijkenAan: boolean;
+  vestigingsId?: number;
+  /** Every boolean in the school's restricties for this child (portal section switches). */
+  rights: Record<string, boolean>;
 };
 
 export async function loadChildren(client: ApiClient): Promise<ChildAccess[]> {
@@ -22,7 +25,22 @@ export async function loadChildren(client: ApiClient): Promise<ChildAccess[]> {
       huiswerkBekijkenAan: item.huiswerkBekijkenAan === true,
       roosterBekijkenAan: item.roosterBekijkenAan === true,
       cijfersBekijkenAan: item.cijfersBekijkenAan === true,
+      vestigingsId:
+        typeof item.vestigingsId === "number" ? item.vestigingsId : undefined,
+      rights: Object.fromEntries(
+        Object.entries(item).filter(
+          (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+        ),
+      ),
     }));
+}
+
+/**
+ * Whether the school shows a portal section for this child. Unknown flags
+ * count as allowed (the API itself still answers 403 when not).
+ */
+export function hasRight(child: ChildAccess, flag: string): boolean {
+  return child.rights[flag] !== false;
 }
 
 export function resolveChild(
