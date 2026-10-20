@@ -14,15 +14,15 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 
 ## What it does
 
-| Tool          | What you get                                                                                                 |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| `whoami`      | Your school label, the linked children with their numeric ids, and which portal sections are visible to you. |
-| `lessons`     | The timetable for one day, and whether that day is a school holiday.                                         |
-| `homework`    | Homework and study-planner items for one day: per lesson, per day, per week, and hand-in assignments.        |
-| `grades`      | The most recent results (up to 30) and averages per subject.                                                 |
-| `auth_status` | Whether a session is stored, where, and how the last token renewal went. Never returns tokens.               |
+| Tool          | What you get                                                                                                                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `whoami`      | Your school label, the linked children with their numeric ids, and which portal sections are visible to you.                                                                                                                                                             |
+| `lessons`     | The timetable for one day, and whether that day is a school holiday.                                                                                                                                                                                                     |
+| `homework`    | What to do and learn on which day: every study-planner item for a date range (default today + 6 days, max 42), grouped by day, with description, learning goals, time estimate, test type, attachments (links), external links, hand-in window/status and the done tick. |
+| `grades`      | The most recent results (up to 30) and averages per subject.                                                                                                                                                                                                             |
+| `auth_status` | Whether a session is stored, where, and how the last token renewal went. Never returns tokens.                                                                                                                                                                           |
 
-- `lessons` and `homework` take an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and default to **tomorrow**.
+- `lessons` takes an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and defaults to **tomorrow**. Range tools take `date`, or `from`/`to`.
 - If more than one child is linked to your account, pass `leerlingId` (the numeric id from `whoami`).
 - If a section is switched off for your account, the tool says so and does not call that part of the API.
 

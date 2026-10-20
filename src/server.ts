@@ -17,6 +17,14 @@ const dateArg = z
   .optional()
   .describe("Amsterdam calendar date. Defaults to tomorrow.");
 
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
+
+const rangeArgs = (defaultText: string) => ({
+  date: ymd.optional().describe("One Amsterdam calendar date."),
+  from: ymd.optional().describe(`First date of the range. ${defaultText}`),
+  to: ymd.optional().describe("Last date of the range (inclusive)."),
+});
+
 const leerlingArg = z
   .string()
   .optional()
@@ -58,12 +66,15 @@ export function createServer(
   server.registerTool(
     "homework",
     {
-      title: "Homework",
+      title: "Homework / study planner",
       description:
-        "Lesson, day, week, and hand-in study-planner items for one Amsterdam date.",
-      inputSchema: { date: dateArg, leerlingId: leerlingArg },
+        "What to do and learn on which day: every studiewijzer item (lesson, day and week items) for a date range, grouped by day, with description, learning goals, time estimate, test type, teacher note, attachments (file links), external links, hand-in window and status, and the done tick. Also lists hand-in deadlines per day. Defaults to today plus 6 days; at most 42 days.",
+      inputSchema: {
+        ...rangeArgs("Defaults to today."),
+        leerlingId: leerlingArg,
+      },
     },
-    async ({ date, leerlingId }) => homeworkTool(ctx, { date, leerlingId }),
+    async (args) => homeworkTool(ctx, args),
   );
 
   server.registerTool(
