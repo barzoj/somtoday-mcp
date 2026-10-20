@@ -5,6 +5,8 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./test/setup.ts"],
     restoreMocks: true,
+    // Windows CI runners can be slow on the first Intl/date call.
+    testTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
