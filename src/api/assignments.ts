@@ -120,6 +120,11 @@ export type SubmissionView = {
   ingeleverdDoor?: string;
 };
 
+/**
+ * Submissions and teacher reactions. Student sessions only: the portal calls
+ * this solely when the current context is a student, and a parent session
+ * gets HTTP 400. Not used by the parent tools; kept for a future student mode.
+ */
 export async function fetchAssignmentDetail(
   client: ApiClient,
   toekenningId: number,

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { fetchAssignmentDetail } from "../../src/api/assignments.js";
 import {
+  SUBMISSIONS_STUDENT_ONLY,
   assignmentDetailTool,
   assignmentsTool,
 } from "../../src/tools/assignments.js";
@@ -79,7 +82,7 @@ describe("assignments", () => {
   });
 });
 
-describe("assignment_detail", () => {
+describe("fetchAssignmentDetail (student sessions only)", () => {
   it("maps submissions and teacher reactions", async () => {
     const { fetchFn, calls } = routedFetch([
       [/\/account\/me/, () => accountMe(LEERLING)],
@@ -129,11 +132,8 @@ describe("assignment_detail", () => {
       ],
     ]);
     const ctx = await toolContext(fetchFn);
-    const out = toolJson(
-      await assignmentDetailTool(ctx, { toekenningId: "77" }),
-    );
+    const out = await fetchAssignmentDetail(ctx.client, 77);
     expect(out).toMatchObject({
-      toekenningId: 77,
       aantalInleveringenInVerwerking: 0,
       inleveringen: [
         {
@@ -155,6 +155,62 @@ describe("assignment_detail", () => {
     });
     expect(JSON.stringify(out)).not.toContain("eula");
     expect(calls.every((call) => call.init?.method === "GET")).toBe(true);
+  });
+});
+
+describe("assignment_detail (parent view)", () => {
+  const list = () =>
+    listResponse([
+      handIn(31, "2026-10-01T06:00:00Z", "2026-10-25T21:59:00Z"),
+      handIn(32, "2026-11-01T06:00:00Z", "2026-11-10T21:59:00Z"),
+    ]);
+
+  it("returns the dag-toekenning from the hand-in list, never calls inleverdetails", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/, list],
+      [/inleverdetails/, () => jsonResponse(400, { message: "x" })],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const result = await assignmentDetailTool(ctx, { toekenningId: "31" }, NOW);
+    expect(result.isError).toBeFalsy();
+    const out = toolJson(result) as Record<string, any>;
+    expect(out.toekenningId).toBe(31);
+    expect(out.opdracht).toMatchObject({
+      toekenningId: 31,
+      soort: "dag",
+      categorie: "IN_TE_LEVEREN",
+      onderwerp: "Opdracht 31",
+      omschrijving: "Lees paragraaf 3.2",
+      inlevermoment: {
+        eind: "2026-10-25T21:59:00Z",
+        omschrijving: "Inleveren als PDF",
+      },
+    });
+    expect(out.opdracht.bijlagen[0].fileUrl).toBe(
+      "https://files.example.test/werkblad.pdf",
+    );
+    expect(out.inleveringen).toMatchObject({
+      available: false,
+      reason: SUBMISSIONS_STUDENT_ONLY,
+    });
+    expect(
+      calls.some((call) => call.url.pathname.includes("inleverdetails")),
+    ).toBe(false);
+    expect(calls.every((call) => call.init?.method === "GET")).toBe(true);
+  });
+
+  it("explains an id that is not a hand-in", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/, list],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const result = await assignmentDetailTool(ctx, { toekenningId: "99" }, NOW);
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toMatch(
+      /No hand-in assignment with toekenningId 99/,
+    );
   });
 
   it("rejects a non-numeric id", async () => {

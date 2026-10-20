@@ -142,10 +142,10 @@ export function createServer(
     {
       title: "Assignment detail",
       description:
-        "Submissions (date, status, file or link) and teacher reactions for one assignment.",
+        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl) and links, hand-in window, status, late flag and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
       inputSchema: {
         toekenningId: numericId().describe(
-          "Numeric toekenningId from assignments or homework.",
+          "toekenningId from assignments (number or digit string).",
         ),
         leerlingId: leerlingArg(),
       },
