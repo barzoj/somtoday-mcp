@@ -12,6 +12,7 @@ import { lessonsTool } from "./tools/lessons.js";
 import { gradesLatestTool } from "./tools/grades-latest.js";
 import { gradesOverviewTool } from "./tools/grades-overview.js";
 import { subjectGradesTool } from "./tools/subject-grades.js";
+import { examGradesTool } from "./tools/exam-grades.js";
 import { scheduleTool } from "./tools/schedule.js";
 import { studyMaterialTool } from "./tools/study-material.js";
 import { whoamiTool } from "./tools/whoami.js";
@@ -211,6 +212,24 @@ export function createServer(
       },
     },
     async (args) => subjectGradesTool(ctx, args),
+  );
+
+  server.registerTool(
+    "exam_grades",
+    {
+      title: "Exam dossier (SE)",
+      description:
+        "School-exam dossier (PTA/SE) overview: per subject the SE average, every SE result, tests still to come, and test-type averages. Says so when the child has no exam dossier yet.",
+      inputSchema: {
+        examenjaar: z
+          .number()
+          .int()
+          .optional()
+          .describe("Exam year; defaults to the latest."),
+        leerlingId: leerlingArg,
+      },
+    },
+    async (args) => examGradesTool(ctx, args),
   );
 
   server.registerTool(
