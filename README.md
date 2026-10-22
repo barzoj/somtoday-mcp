@@ -44,6 +44,7 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 
 - `lessons` takes an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and defaults to **tomorrow**. Range tools take `date`, or `from`/`to`.
 - If more than one child is linked to your account, pass `leerlingId` (the numeric id from `whoami`).
+- `assignments` with `status=open` hides past-due items that expect no digital hand-in (`inleveringenVerwacht: 0`, e.g. handed in on paper) and reports the count in `verborgenZonderInlevering`; pass `includeNoHandIn=true` to see them.
 - If a section is switched off for your account, the tool says so and does not call that part of the API.
 
 Not included: news, messages, absence reporting, parent-evening scheduling, uploads, or anything that changes data.

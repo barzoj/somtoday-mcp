@@ -82,6 +82,53 @@ describe("assignments", () => {
   });
 });
 
+describe("assignments status=open without digital hand-in", () => {
+  function noHandIn(id: number, start: string, eind: string) {
+    const item = handIn(id, start, eind);
+    (item.studiewijzerItem.inlevermomenten as any)[0].inleveringenVerwacht = 0;
+    return item;
+  }
+
+  it("hides past-due items that expect no digital hand-in unless asked", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [
+        /studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/,
+        () =>
+          listResponse([
+            noHandIn(11, "2026-09-01T06:00:00Z", "2026-09-10T21:59:00Z"),
+            noHandIn(12, "2026-10-01T06:00:00Z", "2026-10-30T21:59:00Z"),
+            noHandIn(13, "2026-11-01T06:00:00Z", "2026-11-10T21:59:00Z"),
+            handIn(14, "2026-10-01T06:00:00Z", "2026-10-19T21:59:00Z"),
+          ]),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const open = toolJson(
+      await assignmentsTool(ctx, { status: "open" }, NOW),
+    ) as any;
+    expect(open.items.map((item: any) => item.toekenningId)).toEqual([
+      14, 12, 13,
+    ]);
+    expect(open.verborgenZonderInlevering).toBe(1);
+
+    const withPaper = toolJson(
+      await assignmentsTool(
+        ctx,
+        { status: "open", includeNoHandIn: true },
+        NOW,
+      ),
+    ) as any;
+    expect(withPaper.items.map((item: any) => item.toekenningId)).toEqual([
+      11, 14, 12, 13,
+    ]);
+    expect(withPaper.verborgenZonderInlevering).toBeUndefined();
+
+    const all = toolJson(await assignmentsTool(ctx, {}, NOW)) as any;
+    expect(all.shown).toBe(4);
+  });
+});
+
 describe("fetchAssignmentDetail (student sessions only)", () => {
   it("maps submissions and teacher reactions", async () => {
     const { fetchFn, calls } = routedFetch([
