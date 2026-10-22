@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/barzoj/somtoday-mcp/compare/v0.1.1...v0.2.0) (2026-10-22)
+
+
+### Features
+
+* **assignments:** hide past items without a digital hand-in in status=open ([#51](https://github.com/barzoj/somtoday-mcp/issues/51)) ([2ab01d6](https://github.com/barzoj/somtoday-mcp/commit/2ab01d633b17ad068b59b360b9ce6522349e0d46))
+* **assignments:** merge near-duplicate assignments ([#53](https://github.com/barzoj/somtoday-mcp/issues/53)) ([06ac896](https://github.com/barzoj/somtoday-mcp/commit/06ac896263b62a8e3c11b0092757beb44a613c89))
+* **lessons:** show the appointment type and cancellations ([#50](https://github.com/barzoj/somtoday-mcp/issues/50)) ([8d35ae5](https://github.com/barzoj/somtoday-mcp/commit/8d35ae550a88b46604560626cb0bb74dcb1d0b7b))
+* **signing:** read the signed document of a signing request ([#45](https://github.com/barzoj/somtoday-mcp/issues/45)) ([74213cf](https://github.com/barzoj/somtoday-mcp/commit/74213cff222273ea53e1e973205a7f0b34c71f51))
+
+
+### Bug Fixes
+
+* **assignments:** always set teLaat as a boolean ([#46](https://github.com/barzoj/somtoday-mcp/issues/46)) ([4c83879](https://github.com/barzoj/somtoday-mcp/commit/4c83879fafae2f9f0be6d435e304536afba1dcf8))
+* **schedule:** drop the routine enrolment notice and keep empty days ([#47](https://github.com/barzoj/somtoday-mcp/issues/47)) ([f451f1a](https://github.com/barzoj/somtoday-mcp/commit/f451f1acdfecdaca93164d34053f1b105fe0da4c))
+
 ## [0.1.1](https://github.com/barzoj/somtoday-mcp/compare/v0.1.0...v0.1.1) (2026-10-20)
 
 
