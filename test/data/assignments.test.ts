@@ -129,6 +129,41 @@ describe("assignments status=open without digital hand-in", () => {
   });
 });
 
+describe("assignments dedupe", () => {
+  it("merges near-duplicates and keeps their ids", async () => {
+    const twin = handIn(22, "2026-10-01T06:00:00Z", "2026-10-30T21:59:00Z");
+    twin.studiewijzerItem.onderwerp = "Opdracht 21";
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [
+        /studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/,
+        () =>
+          listResponse([
+            handIn(21, "2026-10-01T06:00:00Z", "2026-10-30T21:59:00Z"),
+            twin,
+            handIn(23, "2026-10-01T06:00:00Z", "2026-10-30T21:59:00Z"),
+          ]),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await assignmentsTool(ctx, {}, NOW)) as any;
+    expect(out.total).toBe(2);
+    expect(
+      out.items.map((item: any) => [
+        item.toekenningId,
+        item.duplicaatToekenningIds,
+      ]),
+    ).toEqual([
+      [21, [22]],
+      [23, undefined],
+    ]);
+    const raw = toolJson(
+      await assignmentsTool(ctx, { dedupe: false }, NOW),
+    ) as any;
+    expect(raw.total).toBe(3);
+  });
+});
+
 describe("fetchAssignmentDetail (student sessions only)", () => {
   it("maps submissions and teacher reactions", async () => {
     const { fetchFn, calls } = routedFetch([

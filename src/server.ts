@@ -128,7 +128,7 @@ export function createServer(
     {
       title: "Assignments (hand-ins)",
       description:
-        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (always a boolean: true only for an open hand-in past its deadline), description, attachments and links. status=open keeps upcoming and to-do ones, and by default hides past-due items where no digital hand-in is expected (inleveringenVerwacht 0, e.g. on paper; count in verborgenZonderInlevering); includeNoHandIn=true keeps them. Use toekenningId with assignment_detail." +
+        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (always a boolean: true only for an open hand-in past its deadline), description, attachments and links. status=open keeps upcoming and to-do ones, and by default hides past-due items where no digital hand-in is expected (inleveringenVerwacht 0, e.g. on paper; count in verborgenZonderInlevering); includeNoHandIn=true keeps them. Near-duplicates (same subject, topic, window and status, e.g. published to two groups) are merged by default, with the other ids in duplicaatToekenningIds; dedupe=false lists them separately. Use toekenningId with assignment_detail." +
         " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         status: z.enum(["open", "all"]).optional().describe("Default all."),
@@ -137,6 +137,12 @@ export function createServer(
           .optional()
           .describe(
             "With status=open: also show past-due items without a digital hand-in (inleveringenVerwacht 0). Default false.",
+          ),
+        dedupe: z
+          .boolean()
+          .optional()
+          .describe(
+            "Merge near-duplicate assignments (same subject, topic, window, status). Default true.",
           ),
         leerlingId: leerlingArg(),
       },
