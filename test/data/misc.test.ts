@@ -3,11 +3,13 @@ import { ACCEPT_JSON } from "../../src/constants.js";
 import {
   consentsTool,
   parentEveningTool,
+  signingDocumentTool,
   signingRequestsTool,
 } from "../../src/tools/misc.js";
 import {
   jsonResponse,
   listResponse,
+  minimalPdf,
   routedFetch,
   toolContext,
   toolJson,
@@ -23,9 +25,10 @@ describe("signing_requests", () => {
             {
               id: 1,
               titel: "Toestemming excursie",
-              status: "OPEN",
-              omschrijving: "<p>Graag tekenen</p>",
+              status: "OPENSTAAND",
+              toelichting: "<p>Graag tekenen</p>",
             },
+            { id: "a1b2-c3", titel: "Schoolreis", status: "ONDERTEKEND" },
           ]),
       ],
     ]);
@@ -35,12 +38,75 @@ describe("signing_requests", () => {
       {
         id: 1,
         titel: "Toestemming excursie",
-        status: "OPEN",
-        omschrijving: "Graag tekenen",
+        status: "OPENSTAAND",
+        toelichting: "Graag tekenen",
+        document: { tool: "signing_document", id: 1, available: false },
+      },
+      {
+        id: "a1b2-c3",
+        titel: "Schoolreis",
+        status: "ONDERTEKEND",
+        document: { tool: "signing_document", id: "a1b2-c3", available: true },
       },
     ]);
     expect(calls[0]?.headers.get("accept")).toBe(ACCEPT_JSON);
     expect(calls[0]?.init?.method).toBe("GET");
+  });
+});
+
+describe("signing_document", () => {
+  it("downloads the PDF with the login token and extracts text", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [
+        /\/begeleiden\/ondertekenverzoeken\/77\/document$/,
+        () =>
+          new Response(minimalPdf("Ondertekend formulier"), {
+            status: 200,
+            headers: { "content-type": "application/pdf" },
+          }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await signingDocumentTool(ctx, { id: "77" }));
+    expect(out).toMatchObject({
+      id: "77",
+      contentType: "application/pdf",
+      fileName: "ondertekenverzoek-77.pdf",
+      pages: 1,
+    });
+    expect(String(out.text)).toContain("Ondertekend formulier");
+    expect(calls[0]?.init?.method).toBe("GET");
+    expect(calls[0]?.headers.get("accept")).toBe("application/pdf");
+    expect(calls[0]?.headers.get("authorization")).toMatch(/^Bearer /);
+  });
+
+  it("uses the server's file name when given", async () => {
+    const { fetchFn } = routedFetch([
+      [
+        /\/document$/,
+        () =>
+          new Response(minimalPdf("x"), {
+            status: 200,
+            headers: {
+              "content-type": "application/pdf",
+              "content-disposition": 'attachment; filename="toestemming.pdf"',
+            },
+          }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await signingDocumentTool(ctx, { id: "5" }));
+    expect(out.fileName).toBe("toestemming.pdf");
+  });
+
+  it("reports a missing document as not available", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/document$/, () => new Response("", { status: 404 })],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    expect(toolJson(await signingDocumentTool(ctx, { id: "9" }))).toMatchObject(
+      { available: false, status: 404 },
+    );
   });
 });
 
