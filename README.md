@@ -21,7 +21,7 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 | `homework`            | What to do and learn on which day: every study-planner item for a date range (default today + 6 days, max 42), grouped by day, with description, learning goals, time estimate, test type, attachments (links), external links, hand-in window/status and the done tick. |
 | `grades`              | The most recent results (up to 30) and averages per subject.                                                                                                                                                                                                             |
 | `assignments`         | All hand-in assignments with window, status (upcoming, to do, waiting for review, approved), late flag, description, attachments and links. `status=open` keeps the ones still to do.                                                                                    |
-| `assignment_detail`   | Submissions (date, status, file or link) and teacher reactions for one assignment.                                                                                                                                                                                       |
+| `assignment_detail`   | One assignment as the parent portal shows it: instruction, files, links, hand-in window and status. Submitted files and teacher reactions are only visible in the student's own session.                                                                                 |
 | `study_material`      | Study material per subject: lesson material from the planner by date, year attachments by folder (file links), external links, and methods/publisher links. No arguments lists the subjects; `vak` picks one; `all=true` fetches every subject.                          |
 | `schedule`            | Timetable for a date range (default today + 6 days, max 42): time, lesson hour, subject, room, teachers, type (test, exam, parent evening …), lesson notes, changes and cancellations, attachments, holidays.                                                            |
 | `grades_latest`       | Newest results first with subject, column, description, grade, weight, test type, period, date, remarks and resits; `limit` (default 50, max 1000) and `dossier=examen` for SE results.                                                                                  |
@@ -46,7 +46,7 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 - If more than one child is linked to your account, pass `leerlingId` (the numeric id from `whoami`).
 - If a section is switched off for your account, the tool says so and does not call that part of the API.
 
-Not included: news, messages, absence reporting, parent-evening scheduling, uploads, or anything that changes data.
+Not included: anything that changes data, such as sending messages, reporting absence, booking parent-evening slots, signing requests, or uploading hand-ins.
 
 ## Read-only and privacy
 
@@ -60,9 +60,9 @@ Timetables, homework, and grades are personal data about children. Keep the outp
 
 ## Install
 
-Requires Node.js 22 or newer.
+Requires Node.js 22 or newer (the PDF text extraction used by `download_attachment` and `signing_document` does not run on Node 20).
 
-> The package is not published to npm yet. Until it is, use the "From a checkout" steps below; `npx somtoday-mcp` will not find it.
+Published on npm as [`somtoday-mcp`](https://www.npmjs.com/package/somtoday-mcp), with [provenance](https://docs.npmjs.com/generating-provenance-statements) from this repository's release workflow.
 
 ```bash
 npx -y somtoday-mcp            # start the MCP server (used by your MCP client)
