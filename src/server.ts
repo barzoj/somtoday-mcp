@@ -127,7 +127,7 @@ export function createServer(
     {
       title: "Assignments (hand-ins)",
       description:
-        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), late flag, description, attachments and links. status=open keeps upcoming and to-do ones. Use toekenningId with assignment_detail." +
+        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (always a boolean: true only for an open hand-in past its deadline), description, attachments and links. status=open keeps upcoming and to-do ones. Use toekenningId with assignment_detail." +
         " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         status: z.enum(["open", "all"]).optional().describe("Default all."),
