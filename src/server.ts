@@ -99,7 +99,7 @@ export function createServer(
     {
       title: "Schedule",
       description:
-        "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (meldingen/wijziging), attachments, and holidays. Defaults to today plus 6 days; at most 42 days.",
+        "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (wijziging, uitgevallen=true, meldingen with real warnings only; the routine 'Inschrijving in orde.' notice is dropped), attachments, and holidays. Every day has items (empty array on a free day). Defaults to today plus 6 days; at most 42 days.",
       inputSchema: {
         ...rangeArgs("Defaults to today."),
         leerlingId: leerlingArg(),
