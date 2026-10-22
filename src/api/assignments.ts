@@ -54,6 +54,19 @@ export function categorize(
   return { teLaat: false };
 }
 
+/**
+ * A past-due open item where Somtoday expects no digital hand-in
+ * (`inleveringenVerwacht: 0`, e.g. handed in on paper or in class). It stays
+ * IN_TE_LEVEREN with teLaat forever, so `status=open` hides it by default.
+ */
+export function isPastWithoutHandIn(item: AssignmentView): boolean {
+  return (
+    item.categorie === "IN_TE_LEVEREN" &&
+    item.teLaat === true &&
+    item.inlevermoment?.inleveringenVerwacht === 0
+  );
+}
+
 export async function fetchAssignments(
   client: ApiClient,
   leerlingId: number,

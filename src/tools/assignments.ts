@@ -1,4 +1,8 @@
-import { fetchAssignments, findAssignment } from "../api/assignments.js";
+import {
+  fetchAssignments,
+  findAssignment,
+  isPastWithoutHandIn,
+} from "../api/assignments.js";
 import { childTool } from "./child-tool.js";
 import type { ToolContext } from "./context.js";
 import type { ToolResult } from "./result.js";
@@ -7,7 +11,11 @@ const OPEN = new Set(["AANKOMEND", "IN_TE_LEVEREN"]);
 
 export async function assignmentsTool(
   ctx: ToolContext,
-  args: { status?: "open" | "all"; leerlingId?: string },
+  args: {
+    status?: "open" | "all";
+    includeNoHandIn?: boolean;
+    leerlingId?: string;
+  },
   now = new Date(),
 ): Promise<ToolResult> {
   return childTool(
@@ -16,11 +24,22 @@ export async function assignmentsTool(
     "huiswerkBekijkenAan",
     async (child) => {
       const all = await fetchAssignments(ctx.client, child.leerlingId, now);
-      const items =
-        args.status === "open"
-          ? all.filter((item) => item.categorie && OPEN.has(item.categorie))
-          : all;
-      return { total: all.length, shown: items.length, items };
+      if (args.status !== "open") {
+        return { total: all.length, shown: all.length, items: all };
+      }
+      const open = all.filter(
+        (item) => item.categorie && OPEN.has(item.categorie),
+      );
+      const items = args.includeNoHandIn
+        ? open
+        : open.filter((item) => !isPastWithoutHandIn(item));
+      const hidden = open.length - items.length;
+      return {
+        total: all.length,
+        shown: items.length,
+        ...(hidden > 0 ? { verborgenZonderInlevering: hidden } : {}),
+        items,
+      };
     },
   );
 }
