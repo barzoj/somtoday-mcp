@@ -67,6 +67,46 @@ export function isPastWithoutHandIn(item: AssignmentView): boolean {
   );
 }
 
+/**
+ * Collapse near-duplicates: the same assignment published to several groups
+ * shows up with different toekenningIds but the same subject, topic, hand-in
+ * window and category. Keeps the first and lists the others' ids.
+ */
+export function dedupeAssignments(
+  items: AssignmentView[],
+): Array<AssignmentView & { duplicaatToekenningIds?: number[] }> {
+  const kept = new Map<
+    string,
+    AssignmentView & { duplicaatToekenningIds?: number[] }
+  >();
+  const out: Array<AssignmentView & { duplicaatToekenningIds?: number[] }> = [];
+  for (const item of items) {
+    const key = item.onderwerp
+      ? JSON.stringify([
+          item.vakUuid ?? item.vak ?? "",
+          item.onderwerp.trim().toLowerCase(),
+          item.inlevermoment?.start ?? "",
+          item.inlevermoment?.eind ?? "",
+          item.categorie ?? "",
+        ])
+      : undefined;
+    const first = key ? kept.get(key) : undefined;
+    if (first) {
+      if (item.toekenningId !== undefined) {
+        first.duplicaatToekenningIds = [
+          ...(first.duplicaatToekenningIds ?? []),
+          item.toekenningId,
+        ];
+      }
+      continue;
+    }
+    const copy = { ...item };
+    if (key) kept.set(key, copy);
+    out.push(copy);
+  }
+  return out;
+}
+
 export async function fetchAssignments(
   client: ApiClient,
   leerlingId: number,

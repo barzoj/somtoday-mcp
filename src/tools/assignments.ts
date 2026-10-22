@@ -1,4 +1,5 @@
 import {
+  dedupeAssignments,
   fetchAssignments,
   findAssignment,
   isPastWithoutHandIn,
@@ -14,6 +15,7 @@ export async function assignmentsTool(
   args: {
     status?: "open" | "all";
     includeNoHandIn?: boolean;
+    dedupe?: boolean;
     leerlingId?: string;
   },
   now = new Date(),
@@ -23,7 +25,8 @@ export async function assignmentsTool(
     args.leerlingId,
     "huiswerkBekijkenAan",
     async (child) => {
-      const all = await fetchAssignments(ctx.client, child.leerlingId, now);
+      const fetched = await fetchAssignments(ctx.client, child.leerlingId, now);
+      const all = args.dedupe === false ? fetched : dedupeAssignments(fetched);
       if (args.status !== "open") {
         return { total: all.length, shown: all.length, items: all };
       }
