@@ -61,11 +61,11 @@ describe("assignments", () => {
     expect(
       out.items.map((item) => [item.toekenningId, item.categorie, item.teLaat]),
     ).toEqual([
-      [4, "AKKOORD", undefined],
+      [4, "AKKOORD", false],
       [2, "IN_TE_LEVEREN", true],
-      [3, "IN_AFWACHTING", undefined],
+      [3, "IN_AFWACHTING", false],
       [5, "IN_TE_LEVEREN", false],
-      [1, "AANKOMEND", undefined],
+      [1, "AANKOMEND", false],
     ]);
     expect(out.items[0]).toMatchObject({
       inleverStatus: "AKKOORD",

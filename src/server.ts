@@ -99,7 +99,7 @@ export function createServer(
     {
       title: "Schedule",
       description:
-        "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (meldingen/wijziging), attachments, and holidays. Defaults to today plus 6 days; at most 42 days.",
+        "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (wijziging, uitgevallen=true, meldingen with real warnings only; the routine 'Inschrijving in orde.' notice is dropped), attachments, and holidays. Every day has items (empty array on a free day). Defaults to today plus 6 days; at most 42 days.",
       inputSchema: {
         ...rangeArgs("Defaults to today."),
         leerlingId: leerlingArg(),
@@ -128,7 +128,7 @@ export function createServer(
     {
       title: "Assignments (hand-ins)",
       description:
-        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), late flag, description, attachments and links. status=open keeps upcoming and to-do ones. Use toekenningId with assignment_detail." +
+        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (always a boolean: true only for an open hand-in past its deadline), description, attachments and links. status=open keeps upcoming and to-do ones. Use toekenningId with assignment_detail." +
         " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         status: z.enum(["open", "all"]).optional().describe("Default all."),
