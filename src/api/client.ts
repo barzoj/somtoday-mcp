@@ -12,6 +12,8 @@ export type ApiResponse<T> = {
 export type GetOptions = {
   /** `json` for the endpoints that expect plain application/json (news, school info, signing). */
   accept?: "platinum" | "json";
+  /** Raw Accept header; overrides `accept` (binary downloads such as `application/pdf`). */
+  acceptHeader?: string;
   /** Inclusive item range, sent as `Range: items=start-end`. */
   range?: { start: number; end: number };
 };
@@ -55,20 +57,51 @@ export class ApiClient {
     query?: URLSearchParams,
     options: GetOptions = {},
   ): Promise<ApiResponse<T>> {
+    const response = await this.authorizedGet(path, query, options);
+    return this.read(response, path);
+  }
+
+  /**
+   * Authenticated binary GET (e.g. a signed PDF). Returns the raw response
+   * after the same token-renewal retry as `get`; the caller reads the body.
+   */
+  async getRaw(
+    path: string,
+    acceptHeader: string,
+    query?: URLSearchParams,
+  ): Promise<Response> {
+    const response = await this.authorizedGet(path, query, { acceptHeader });
+    if (response.status === 403 || response.status === 404) {
+      await response.body?.cancel();
+      throw new ApiNotAvailableError(response.status, path);
+    }
+    if (response.status !== 200) {
+      await response.body?.cancel();
+      throw new Error(`API HTTP ${response.status}`);
+    }
+    return response;
+  }
+
+  private async authorizedGet(
+    path: string,
+    query: URLSearchParams | undefined,
+    options: GetOptions,
+  ): Promise<Response> {
     const url = await this.url(path, query);
     const first = await this.send(url, options);
     if (!(await shouldRetryWithNewToken(first.response))) {
-      return this.read(first.response, path);
+      return first.response;
     }
 
     // 401, or a 403 without a body: renew the access token (once) and retry once.
+    await first.response.body?.cancel().catch(() => undefined);
     await this.session.refreshAfterRejection(first.token);
     const retry = await this.send(url, options);
     if (retry.response.status === 401) {
       this.session.clearAccessToken();
       throw new LoginRequiredError("API rejected a freshly renewed token");
     }
-    return this.read(retry.response, path);
+    return retry.response;
   }
 
   /**
@@ -138,7 +171,9 @@ export class ApiClient {
     const token = await this.session.getAccessToken();
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
-      Accept: options.accept === "json" ? ACCEPT_JSON : ACCEPT,
+      Accept:
+        options.acceptHeader ??
+        (options.accept === "json" ? ACCEPT_JSON : ACCEPT),
     };
     if (options.range) {
       headers.Range = `items=${options.range.start}-${options.range.end}`;

@@ -20,6 +20,7 @@ import { childrenTool, schoolInfoTool, teachersTool } from "./tools/profile.js";
 import {
   consentsTool,
   parentEveningTool,
+  signingDocumentTool,
   signingRequestsTool,
 } from "./tools/misc.js";
 import { downloadAttachmentTool } from "./tools/download.js";
@@ -98,7 +99,7 @@ export function createServer(
     {
       title: "Schedule",
       description:
-        "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (meldingen/wijziging), attachments, and holidays. Defaults to today plus 6 days; at most 42 days.",
+        "Timetable for a date range, per day: lessons, tests and other appointments with time, lesson hour, subject, room, teachers, type (e.g. ROOSTERTOETS, EXAMEN, OUDERAVOND), lesson notes, changes and cancellations (wijziging, uitgevallen=true, meldingen with real warnings only; the routine 'Inschrijving in orde.' notice is dropped), attachments, and holidays. Every day has items (empty array on a free day). Defaults to today plus 6 days; at most 42 days.",
       inputSchema: {
         ...rangeArgs("Defaults to today."),
         leerlingId: leerlingArg(),
@@ -370,10 +371,25 @@ export function createServer(
     {
       title: "Signing requests",
       description:
-        "Digital signing requests (ondertekenverzoeken) waiting for you or done. Read-only; nothing is signed.",
+        "Digital signing requests (ondertekenverzoeken) waiting for you or done. Each item has document {tool:'signing_document', id, available}: pass id to signing_document to read the (signed) PDF. Read-only; nothing is signed.",
       inputSchema: {},
     },
     async () => signingRequestsTool(ctx),
+  );
+
+  server.registerTool(
+    "signing_document",
+    {
+      title: "Signing document",
+      description:
+        "Read the document (PDF) of one signing request, as the portal's download button does: pass document.id from signing_requests. Returns extracted text (max 10 MB). The document needs your login, so it is not a fileUrl for download_attachment. Usually available once signed; not for requests still to sign, withdrawn or expired.",
+      inputSchema: {
+        id: textOrNumber()
+          .pipe(z.string().regex(/^[A-Za-z0-9-]+$/))
+          .describe("Signing request id (document.id from signing_requests)."),
+      },
+    },
+    async (args) => signingDocumentTool(ctx, args),
   );
 
   server.registerTool(

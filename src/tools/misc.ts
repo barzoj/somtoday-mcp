@@ -1,6 +1,7 @@
 import {
   fetchConsents,
   fetchParentEvening,
+  fetchSigningDocument,
   fetchSigningRequests,
   findParentEveningIds,
 } from "../api/misc.js";
@@ -13,6 +14,16 @@ export async function signingRequestsTool(
 ): Promise<ToolResult> {
   return accountTool(ctx, async () => ({
     ondertekenverzoeken: await section(() => fetchSigningRequests(ctx.client)),
+  }));
+}
+
+export async function signingDocumentTool(
+  ctx: ToolContext,
+  args: { id: string },
+): Promise<ToolResult> {
+  return accountTool(ctx, async () => ({
+    id: args.id,
+    ...(await fetchSigningDocument(ctx.client, args.id)),
   }));
 }
 

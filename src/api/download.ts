@@ -54,6 +54,7 @@ export type Attachment = {
 function fileNameFrom(
   disposition: string | null,
   url: URL,
+  fromPath = true,
 ): string | undefined {
   const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
   if (match?.[1]) {
@@ -63,6 +64,7 @@ function fileNameFrom(
       return match[1];
     }
   }
+  if (!fromPath) return undefined;
   const last = url.pathname.split("/").pop();
   return last ? decodeURIComponent(last) : undefined;
 }
@@ -157,51 +159,58 @@ export async function downloadAttachment(
       await response.body?.cancel();
       throw new AttachmentError(`download failed: HTTP ${response.status}`);
     }
-    const bytes = await readCapped(
-      response,
-      options.maxBytes ?? ATTACHMENT_MAX_BYTES,
-    );
-    const contentType = (
-      response.headers.get("content-type") ?? "application/octet-stream"
-    )
-      .split(";")[0]!
-      .trim()
-      .toLowerCase();
-    const fileName = fileNameFrom(
-      response.headers.get("content-disposition"),
-      url,
-    );
-    const base: Attachment = {
-      host: url.hostname,
-      contentType,
-      fileName,
-      bytes: bytes.byteLength,
-    };
-    const isPdf =
-      contentType === "application/pdf" ||
-      (contentType === "application/octet-stream" &&
-        /\.pdf$/i.test(fileName ?? ""));
-    if (isPdf) {
-      try {
-        const { text, pages } = await extractPdf(bytes);
-        return {
-          ...base,
-          pages,
-          ...truncate(text),
-          note: text ? undefined : "PDF has no text layer (scanned?)",
-        };
-      } catch {
-        return { ...base, note: "could not read PDF text" };
-      }
-    }
-    if (TEXT_TYPES.test(contentType)) {
-      const decoded = new TextDecoder("utf-8").decode(bytes);
-      const text = /html/.test(contentType) ? htmlToPlain(decoded) : decoded;
-      return { ...base, ...truncate(text) };
-    }
-    return {
-      ...base,
-      note: "binary file; text extraction not supported for this type",
-    };
+    return readFile(response, url, options.maxBytes);
   }
+}
+
+/** Read a successful response (size-capped) and extract text where possible. */
+export async function readFile(
+  response: Response,
+  url: URL,
+  maxBytes = ATTACHMENT_MAX_BYTES,
+  fallbackName?: string,
+): Promise<Attachment> {
+  const bytes = await readCapped(response, maxBytes);
+  const contentType = (
+    response.headers.get("content-type") ?? "application/octet-stream"
+  )
+    .split(";")[0]!
+    .trim()
+    .toLowerCase();
+  const fileName =
+    fileNameFrom(response.headers.get("content-disposition"), url, false) ??
+    fallbackName ??
+    fileNameFrom(null, url);
+  const base: Attachment = {
+    host: url.hostname,
+    contentType,
+    fileName,
+    bytes: bytes.byteLength,
+  };
+  const isPdf =
+    contentType === "application/pdf" ||
+    (contentType === "application/octet-stream" &&
+      /\.pdf$/i.test(fileName ?? ""));
+  if (isPdf) {
+    try {
+      const { text, pages } = await extractPdf(bytes);
+      return {
+        ...base,
+        pages,
+        ...truncate(text),
+        note: text ? undefined : "PDF has no text layer (scanned?)",
+      };
+    } catch {
+      return { ...base, note: "could not read PDF text" };
+    }
+  }
+  if (TEXT_TYPES.test(contentType)) {
+    const decoded = new TextDecoder("utf-8").decode(bytes);
+    const text = /html/.test(contentType) ? htmlToPlain(decoded) : decoded;
+    return { ...base, ...truncate(text) };
+  }
+  return {
+    ...base,
+    note: "binary file; text extraction not supported for this type",
+  };
 }
