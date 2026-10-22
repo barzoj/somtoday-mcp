@@ -19,6 +19,11 @@ describe("lesson date filter", () => {
           titel: "Kept",
           vak: { naam: "SubjectA", afkorting: "SA" },
           docentNamen: ["TeacherA"],
+          afspraakItemType: "ROOSTERTOETS",
+          statusNotifications: [
+            { status: "2002", message: "x" },
+            { status: "4007", message: "y" },
+          ],
         },
         {
           beginDatumTijd: nextDay,
@@ -31,5 +36,7 @@ describe("lesson date filter", () => {
     expect(kept).toHaveLength(1);
     expect(kept[0]?.titel).toBe("Kept");
     expect(kept[0]?.vak?.naam).toBe("SubjectA");
+    expect(kept[0]?.type).toBe("ROOSTERTOETS");
+    expect(kept[0]?.uitgevallen).toBe(true);
   });
 });
