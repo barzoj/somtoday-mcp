@@ -4,6 +4,7 @@ import {
   sameAmsterdamDate,
 } from "../dates.js";
 import type { ApiClient } from "./client.js";
+import { CANCELLED_STATUS } from "./schedule.js";
 import type { AfspraakItem, HolidayItem, ItemList } from "./types.js";
 
 export type LessonView = {
@@ -15,6 +16,9 @@ export type LessonView = {
   titel?: string;
   vak?: { naam?: string; afkorting?: string };
   docentNamen?: string[];
+  /** Appointment type, e.g. LES, ROOSTERTOETS (a test in the timetable), EXAMEN. */
+  type?: string;
+  uitgevallen?: boolean;
 };
 
 export function filterLessonsForDate(
@@ -37,6 +41,11 @@ export function filterLessonsForDate(
         ? { naam: item.vak.naam, afkorting: item.vak.afkorting }
         : undefined,
       docentNamen: item.docentNamen,
+      type: item.afspraakItemType,
+      uitgevallen:
+        item.statusNotifications?.some(
+          (note) => note.status === CANCELLED_STATUS,
+        ) || undefined,
     }));
 }
 

@@ -24,6 +24,8 @@ export type AfspraakItem = {
   titel?: string;
   vak?: { naam?: string; afkorting?: string };
   docentNamen?: string[];
+  afspraakItemType?: string;
+  statusNotifications?: Array<{ status?: string; message?: string }>;
 };
 
 export type HolidayItem = {

@@ -44,7 +44,7 @@ type RawHoliday = {
 /** "Inschrijving in orde." – informational, repeated on every item; not a warning. */
 const INFO_STATUSES = new Set(["2002"]);
 /** The portal marks an appointment as cancelled (uitgevallen) with this status. */
-const CANCELLED_STATUS = "4007";
+export const CANCELLED_STATUS = "4007";
 
 function realMeldingen(notes: RawStatus[] | undefined): RawStatus[] {
   const seen = new Set<string>();
