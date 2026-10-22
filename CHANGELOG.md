@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/barzoj/somtoday-mcp/compare/v0.2.0...v0.3.0) (2026-10-22)
+
+
+### Features
+
+* add MCP Registry metadata (server.json, mcpName) ([#54](https://github.com/barzoj/somtoday-mcp/issues/54)) ([9c866b3](https://github.com/barzoj/somtoday-mcp/commit/9c866b31562378232a66fe705b5d4da8e4565b1e))
+
 ## [0.2.0](https://github.com/barzoj/somtoday-mcp/compare/v0.1.1...v0.2.0) (2026-10-22)
 
 
