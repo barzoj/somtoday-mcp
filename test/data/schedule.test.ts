@@ -48,7 +48,17 @@ describe("schedule", () => {
             206,
             {
               items: [
-                afspraak("2026-12-21T08:00:00Z"),
+                afspraak("2026-12-21T08:00:00Z", {
+                  statusNotifications: [
+                    { status: "2002", message: "Inschrijving in orde." },
+                  ],
+                }),
+                afspraak("2026-12-23T08:00:00Z", {
+                  statusNotifications: [
+                    { status: "2002", message: "Inschrijving in orde." },
+                    { status: "4007", message: "Les vervalt" },
+                  ],
+                }),
                 afspraak("2026-12-22T08:00:00Z", {
                   afspraakItemType: "ROOSTERTOETS",
                   wijzigingOmschrijving: "Lokaal gewijzigd",
@@ -65,9 +75,11 @@ describe("schedule", () => {
               ],
               statusNotifications: [
                 { status: "INFO", message: "Rooster bijgewerkt" },
+                { status: "2002", message: "Inschrijving in orde." },
+                { status: "INFO", message: "Rooster bijgewerkt" },
               ],
             },
-            { "content-range": "items 0-1/2" },
+            { "content-range": "items 0-2/3" },
           ),
       ],
       [/\/afspraakitems\/4242\/jaar\/2026\/week\/53/, () => listResponse([])],
@@ -122,10 +134,18 @@ describe("schedule", () => {
       wijziging: "Lokaal gewijzigd",
       meldingen: [{ status: "GEWIJZIGD", message: "Ander lokaal" }],
     });
-    expect(out.days[5]).toMatchObject({
+    expect(out.days[0]!.items![0]!.meldingen).toBeUndefined();
+    expect(out.days[0]!.items![0]!.uitgevallen).toBeUndefined();
+    expect(out.days[2]!.items![0]).toMatchObject({
+      uitgevallen: true,
+      meldingen: [{ status: "4007", message: "Les vervalt" }],
+    });
+    expect(out.days[5]).toEqual({
       datum: "2026-12-26",
       vakantie: "Kerstvakantie",
+      items: [],
     });
+    expect(out.days[3]).toEqual({ datum: "2026-12-24", items: [] });
     expect(
       calls.filter((call) => call.url.pathname.includes("afspraakitems")),
     ).toHaveLength(2);

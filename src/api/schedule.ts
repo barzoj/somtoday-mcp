@@ -41,6 +41,24 @@ type RawHoliday = {
   vanafDatum?: string;
 };
 
+/** "Inschrijving in orde." – informational, repeated on every item; not a warning. */
+const INFO_STATUSES = new Set(["2002"]);
+/** The portal marks an appointment as cancelled (uitgevallen) with this status. */
+const CANCELLED_STATUS = "4007";
+
+function realMeldingen(notes: RawStatus[] | undefined): RawStatus[] {
+  const seen = new Set<string>();
+  const out: RawStatus[] = [];
+  for (const note of notes ?? []) {
+    if (note.status && INFO_STATUSES.has(note.status)) continue;
+    const key = `${note.status ?? ""}|${note.message ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(compact({ status: note.status, message: note.message }));
+  }
+  return out;
+}
+
 export type ScheduleItemView = {
   id?: number;
   begin?: string;
@@ -56,6 +74,7 @@ export type ScheduleItemView = {
   omschrijving?: string;
   wijziging?: string;
   meldingen?: RawStatus[];
+  uitgevallen?: boolean;
   online?: boolean;
   bijlagen?: AttachmentView[];
   keuzewerktijd?: unknown;
@@ -89,9 +108,11 @@ export function mapScheduleItem(raw: RawAfspraak): ScheduleItemView {
       .filter((naam): naam is string => Boolean(naam)),
     omschrijving: htmlToPlain(raw.omschrijving) || undefined,
     wijziging: raw.wijzigingOmschrijving || undefined,
-    meldingen: raw.statusNotifications?.map((note) =>
-      compact({ status: note.status, message: note.message }),
-    ),
+    meldingen: realMeldingen(raw.statusNotifications),
+    uitgevallen:
+      raw.statusNotifications?.some(
+        (note) => note.status === CANCELLED_STATUS,
+      ) || undefined,
     online: raw.onlineDeelname || undefined,
     bijlagen: (raw.bijlagen ?? [])
       .map(mapAttachment)
@@ -119,7 +140,7 @@ export async function fetchSchedule(
   vakanties: Array<{ naam?: string; van?: string; tot?: string }>;
   days: Array<{ datum: string; vakantie?: string; items: ScheduleItemView[] }>;
 }> {
-  const meldingen: RawStatus[] = [];
+  const notes: RawStatus[] = [];
   const weeks = await Promise.all(
     isoWeeksInRange(from, to).map(({ year, week }) =>
       client.getAll<RawAfspraak>(
@@ -127,17 +148,16 @@ export async function fetchSchedule(
         undefined,
         {
           onPage: (body) => {
-            for (const note of (body as { statusNotifications?: RawStatus[] })
-              ?.statusNotifications ?? []) {
-              meldingen.push(
-                compact({ status: note.status, message: note.message }),
-              );
-            }
+            notes.push(
+              ...((body as { statusNotifications?: RawStatus[] })
+                ?.statusNotifications ?? []),
+            );
           },
         },
       ),
     ),
   );
+  const meldingen = realMeldingen(notes);
   const holidays = (await client.getAll<RawHoliday>("/vakanties/verzorger"))
     .items;
   const items = weeks
@@ -158,16 +178,17 @@ export async function fetchSchedule(
     to,
     meldingen,
     vakanties,
-    days: eachDay(from, to).map((datum) =>
-      compact({
+    // Every day keeps `items` (also when empty), like homework.
+    days: eachDay(from, to).map((datum) => ({
+      ...compact({
         datum,
         vakantie: vakanties.find(
           (holiday) => holiday.van! <= datum && datum <= holiday.tot!,
         )?.naam,
-        items: items.filter(
-          (item) => item.begin && amsterdamYmd(item.begin) === datum,
-        ),
       }),
-    ),
+      items: items.filter(
+        (item) => item.begin && amsterdamYmd(item.begin) === datum,
+      ),
+    })),
   };
 }
