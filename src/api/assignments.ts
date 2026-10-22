@@ -23,7 +23,11 @@ export type AssignmentView = StudiewijzerItemView & {
   teLaat?: boolean;
 };
 
-/** Same buckets as the portal's assignment list. */
+/**
+ * Same buckets as the portal's assignment list. `teLaat` is always a boolean
+ * once an item has a window: true only for an open hand-in (IN_TE_LEVEREN)
+ * whose deadline has passed.
+ */
 export function categorize(
   item: StudiewijzerItemView,
   now: Date,
@@ -35,19 +39,19 @@ export function categorize(
     ? new Date(item.inlevermoment.eind)
     : undefined;
   if (!start) return {};
-  if (start > now) return { categorie: "AANKOMEND" };
+  if (start > now) return { categorie: "AANKOMEND", teLaat: false };
   const status = item.inleverStatus;
   if (!status || status === "HEROPEND") {
     return {
       categorie: "IN_TE_LEVEREN",
-      teLaat: eind ? eind < now : undefined,
+      teLaat: eind ? eind < now : false,
     };
   }
   if (status === "TE_BEOORDELEN" || status === "IN_BEHANDELING") {
-    return { categorie: "IN_AFWACHTING" };
+    return { categorie: "IN_AFWACHTING", teLaat: false };
   }
-  if (status === "AKKOORD") return { categorie: "AKKOORD" };
-  return {};
+  if (status === "AKKOORD") return { categorie: "AKKOORD", teLaat: false };
+  return { teLaat: false };
 }
 
 export async function fetchAssignments(
