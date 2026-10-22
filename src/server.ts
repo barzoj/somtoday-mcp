@@ -88,7 +88,7 @@ export function createServer(
     {
       title: "Lessons",
       description:
-        "Timetable for one Amsterdam date, plus whether that date is a holiday.",
+        "Timetable for one Amsterdam date, plus whether that date is a holiday. Each lesson has type (ROOSTERTOETS or EXAMEN marks a test in the timetable) and uitgevallen=true when cancelled. Homework and the test topic per lesson are not here: call homework for the same date.",
       inputSchema: { date: dateArg, leerlingId: leerlingArg() },
     },
     async ({ date, leerlingId }) => lessonsTool(ctx, { date, leerlingId }),
