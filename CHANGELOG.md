@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/barzoj/somtoday-mcp/compare/v0.3.0...v0.3.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* add tool annotations and clearer tool descriptions ([#57](https://github.com/barzoj/somtoday-mcp/issues/57)) ([7e8791f](https://github.com/barzoj/somtoday-mcp/commit/7e8791f25592bf0a63b7e3dc8333cf0aaf1fc6c7))
+
 ## [0.3.0](https://github.com/barzoj/somtoday-mcp/compare/v0.2.0...v0.3.0) (2026-10-22)
 
 
