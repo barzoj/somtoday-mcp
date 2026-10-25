@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/barzoj/somtoday-mcp/compare/v0.3.1...v0.3.2) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** bump body-parser to 2.4.0 (GHSA-27r3-jxmh-p828) ([8407642](https://github.com/barzoj/somtoday-mcp/commit/8407642aab73035f0536edac162bfeeb3c9557ac))
+
 ## [0.3.1](https://github.com/barzoj/somtoday-mcp/compare/v0.3.0...v0.3.1) (2026-10-23)
 
 
