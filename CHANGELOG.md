@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/barzoj/somtoday-mcp/compare/v0.3.2...v0.3.3) (2026-11-11)
+
+
+### Bug Fixes
+
+* **deps:** require Node 24 for unpdf 2 ([#66](https://github.com/barzoj/somtoday-mcp/issues/66)) ([350c1fa](https://github.com/barzoj/somtoday-mcp/commit/350c1fa31802a264ae3493e0c82f57b35c48ccf9))
+
 ## [0.3.2](https://github.com/barzoj/somtoday-mcp/compare/v0.3.1...v0.3.2) (2026-10-25)
 
 

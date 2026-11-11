@@ -1,6 +1,6 @@
 {
   "name": "somtoday-mcp",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "mcpName": "io.github.barzoj/somtoday-mcp",
   "description": "Unofficial read-only MCP server for the Somtoday parent portal",
   "type": "module",
