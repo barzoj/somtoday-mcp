@@ -4,7 +4,7 @@ Thanks for helping improve `somtoday-mcp`. Please also read the [Code of Conduct
 
 ## Development
 
-Requires Node.js 22 or newer.
+Requires Node.js 24 or newer.
 
 ```bash
 npm install

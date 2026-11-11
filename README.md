@@ -4,7 +4,7 @@
 [![Coverage](https://codecov.io/gh/barzoj/somtoday-mcp/graph/badge.svg)](https://codecov.io/gh/barzoj/somtoday-mcp)
 [![npm version](https://img.shields.io/npm/v/somtoday-mcp)](https://www.npmjs.com/package/somtoday-mcp)
 [![License: MIT](https://img.shields.io/github/license/barzoj/somtoday-mcp)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](https://nodejs.org/)
 [![ToolSDK MCP Registry](https://badges.toolsdk.ai/badge/somtoday-mcp)](https://toolsdk-ai.github.io/toolsdk-mcp-registry/#somtoday-mcp)
 
 Read-only [MCP](https://modelcontextprotocol.io/) server for the Somtoday parent portal. It lets an AI assistant such as Cursor or Claude Desktop look up your child's timetable, homework, and grades from your own parent account.
@@ -63,7 +63,7 @@ Timetables, homework, and grades are personal data about children. Keep the outp
 
 ## Install
 
-Requires Node.js 22 or newer (the PDF text extraction used by `download_attachment` and `signing_document` does not run on Node 20).
+Requires Node.js 24 or newer (the PDF text extraction used by `download_attachment` and `signing_document` depends on unpdf 2, which requires Node 24).
 
 Published on npm as [`somtoday-mcp`](https://www.npmjs.com/package/somtoday-mcp), with [provenance](https://docs.npmjs.com/generating-provenance-statements) from this repository's release workflow.
 
