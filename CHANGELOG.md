@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/barzoj/somtoday-mcp/compare/v0.3.3...v0.3.4) (2026-11-24)
+
+
+### Bug Fixes
+
+* **deps:** require hono 4.13.18 and @hono/node-server 2.1.8 ([#76](https://github.com/barzoj/somtoday-mcp/issues/76)) ([bd171fb](https://github.com/barzoj/somtoday-mcp/commit/bd171fbb528f69f34e326bbbc97d27cf5ad9d21e))
+
 ## [0.3.3](https://github.com/barzoj/somtoday-mcp/compare/v0.3.2...v0.3.3) (2026-11-11)
 
 
