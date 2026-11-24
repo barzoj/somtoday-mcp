@@ -6,6 +6,7 @@
 [![License: MIT](https://img.shields.io/github/license/barzoj/somtoday-mcp)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](https://nodejs.org/)
 [![ToolSDK MCP Registry](https://badges.toolsdk.ai/badge/somtoday-mcp)](https://toolsdk-ai.github.io/toolsdk-mcp-registry/#somtoday-mcp)
+[![barzoj/somtoday-mcp MCP server](https://glama.ai/mcp/servers/barzoj/somtoday-mcp/badges/score.svg)](https://glama.ai/mcp/servers/barzoj/somtoday-mcp)
 
 Read-only [MCP](https://modelcontextprotocol.io/) server for the Somtoday parent portal. It lets an AI assistant such as Cursor or Claude Desktop look up your child's timetable, homework, and grades from your own parent account.
 
