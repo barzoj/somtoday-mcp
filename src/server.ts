@@ -169,7 +169,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Assignment detail",
       description:
-        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl) and links, hand-in window, status, late flag and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
+        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl and/or bestanddataId for download_attachment) and links, hand-in window, status, late flag and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
       inputSchema: {
         toekenningId: numericId().describe(
           "toekenningId from assignments (number or digit string).",

@@ -59,7 +59,7 @@ Every tool that shows files (homework, assignments, schedule, study material, me
 - `fileUrl`: a direct link. `download_attachment` fetches it only from https Somtoday hosts (`*.somtoday.nl`, extend with `SOMTODAY_MCP_ATTACHMENT_HOSTS`), without sending your login token.
 - `bestanddataId`: newer study-planner files have no direct link. `download_attachment` then asks Somtoday for a short-lived signed link with your session (`GET /gcs/download/{bestanddataId}`, as the portal's open button does) and fetches that link without the token.
 
-Files are saved to `SOMTODAY_MCP_DOWNLOAD_DIR`, or `~/Downloads/somtoday-mcp` when it is not set. File names are cleaned (no folders or special characters), existing files are never overwritten (`name (1).pdf`), and the folder and files are only readable by you. Pass `fileName` to name a file when the server sends no name.
+Files are saved to `SOMTODAY_MCP_DOWNLOAD_DIR`, or `~/Downloads/somtoday-mcp` when it is not set. File names are cleaned (no folders or special characters), existing files are never overwritten (`name (1).pdf`), and the folder and files are only readable by you. Pass `fileName` to name a file when the server sends no name. `download_attachment` does not extract text (path and metadata only).
 
 Not available through the parent API: registering for retakes (herkansingen) and make-up dates (inhalen) for missed tests. The portal has no such screen or endpoint for parents; retake grades already show up in `grades_latest` and `subject_grades`.
 

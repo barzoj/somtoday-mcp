@@ -158,11 +158,20 @@ export type StudiewijzerItemView = {
 
 /** Same file types the portal shows; previews and thumbnails are skipped. */
 const FILE_TYPES = ["IMAGE", "VIDEO", "DOCUMENT", "MISC", "AUDIO"];
+const SKIP_ASSEMBLY_TYPES = new Set(["THUMBNAIL", "PREVIEW"]);
 
 function extensionOf(fileName: string | undefined): string | undefined {
   return fileName?.includes(".")
     ? fileName.split(".").pop()?.toLowerCase()
     : undefined;
+}
+
+function displayName(...parts: Array<string | undefined>): string | undefined {
+  for (const part of parts) {
+    const trimmed = part?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
 }
 
 function fromBestand(
@@ -177,7 +186,7 @@ function fromBestand(
   const fileName = bestand.bestandsnaam;
   return {
     id,
-    naam: bijlage.omschrijving?.trim() || fileName || "-",
+    naam: displayName(bijlage.omschrijving, fileName) ?? "-",
     fileName,
     fileUrl: bestand.publicUrl || undefined,
     fileSize: bestand.bestandsgrootte,
@@ -193,9 +202,14 @@ function fromAssembly(
   const assembly =
     bijlage.assemblyResults?.find((result) =>
       FILE_TYPES.includes(result.assemblyFileType ?? ""),
-    ) ?? bijlage.assemblyResults?.[0];
+    ) ??
+    // Untyped/unknown results may still carry the real download URL; never
+    // fall back to PREVIEW/THUMBNAIL (those are portal UI assets only).
+    bijlage.assemblyResults?.find(
+      (result) => !SKIP_ASSEMBLY_TYPES.has(result.assemblyFileType ?? ""),
+    );
   const fileUrl = assembly?.fileUrl || assembly?.sslUrl || undefined;
-  const naam = bijlage.omschrijving ?? assembly?.fileName;
+  const naam = displayName(bijlage.omschrijving, assembly?.fileName);
   if (!naam && !fileUrl) return undefined;
   return {
     id,
@@ -213,7 +227,7 @@ function fromNameOnly(
   id: number | undefined,
 ): AttachmentView | undefined {
   const fileName = bijlage.bestand?.bestandsnaam;
-  const naam = bijlage.omschrijving?.trim() || fileName;
+  const naam = displayName(bijlage.omschrijving, fileName);
   if (!naam) return undefined;
   return {
     id,

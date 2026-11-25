@@ -12,7 +12,6 @@ import {
   mapAttachment,
   mapStudiewijzerItem,
   type AttachmentView,
-  type RawBijlage,
   type RawToekenning,
   type StudiewijzerItemView,
 } from "./studiewijzer.js";
@@ -93,7 +92,7 @@ export function mapHomework(item: HomeworkItem): HomeworkView {
   const subject = lesgroep?.vak?.naam ?? lesgroep?.naam;
   const swi = item.studiewijzerItem;
   const window = swi?.inlevermomenten?.[0];
-  const bijlagen = ((swi?.bijlagen ?? []) as RawBijlage[])
+  const bijlagen = (swi?.bijlagen ?? [])
     .map(mapAttachment)
     .filter((value): value is AttachmentView => Boolean(value));
 

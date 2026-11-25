@@ -124,6 +124,88 @@ describe("mapAttachment", () => {
       type: "DOCUMENT",
     });
   });
+
+  it("skips PREVIEW/THUMBNAIL assemblies instead of treating them as downloads", () => {
+    const view = mapAttachment({
+      omschrijving: "Alleen preview",
+      assemblyResults: [
+        {
+          assemblyFileType: "PREVIEW",
+          fileName: "thumb.png",
+          fileUrl: "https://files.somtoday.nl/thumb.png",
+        },
+        {
+          assemblyFileType: "THUMBNAIL",
+          fileUrl: "https://files.somtoday.nl/tiny.png",
+        },
+      ],
+    });
+    expect(view?.naam).toBe("Alleen preview");
+    expect(view?.fileUrl).toBeUndefined();
+    expect(view?.bestanddataId).toBeUndefined();
+    expect(view?.type).toBeUndefined();
+  });
+
+  it("keeps an untyped assembly with a download URL (not a preview)", () => {
+    expect(
+      mapAttachment({
+        assemblyResults: [
+          {
+            fileName: "los.pdf",
+            fileUrl: "https://files.somtoday.nl/los.pdf",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      naam: "los.pdf",
+      fileUrl: "https://files.somtoday.nl/los.pdf",
+    });
+  });
+
+  it("uses a placeholder naam when a downloadable file has no name", () => {
+    expect(
+      mapAttachment({
+        bestand: {
+          publicUrl: "https://files.somtoday.nl/anon",
+          bestanddataId: "id-anon",
+        },
+      }),
+    ).toMatchObject({
+      naam: "-",
+      fileUrl: "https://files.somtoday.nl/anon",
+      bestanddataId: "id-anon",
+    });
+    expect(
+      mapAttachment({
+        assemblyResults: [
+          {
+            assemblyFileType: "DOCUMENT",
+            sslUrl: "https://files.somtoday.nl/noname.bin",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      naam: "-",
+      fileUrl: "https://files.somtoday.nl/noname.bin",
+      type: "DOCUMENT",
+    });
+  });
+
+  it("returns undefined for an empty bijlage and keeps extension-less file names", () => {
+    expect(mapAttachment({})).toBeUndefined();
+    expect(
+      mapAttachment({
+        bestand: {
+          bestandsnaam: "README",
+          bestanddataId: "id-readme",
+        },
+      }),
+    ).toMatchObject({
+      fileName: "README",
+      fileExtension: undefined,
+      bestanddataId: "id-readme",
+    });
+  });
 });
 
 describe("sanitizeFileName", () => {
