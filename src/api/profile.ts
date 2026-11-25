@@ -105,9 +105,11 @@ export async function fetchSchoolPages(client: ApiClient) {
 }
 
 /**
- * The portal's built-in pages. The page list includes them with these ids,
- * but they have no page of their own: the portal fills them from
- * `/vakanties/verzorger` and `/leerlingen/verzorger/schoolgegevens`.
+ * The portal's built-in pages. The published page list includes them with
+ * these synthetic ids (openapi: "UI ids -1 and -2 are client-only"), but
+ * GET /paginas/{id} does not serve them: the portal fills -1 from
+ * `/vakanties/verzorger` and -2 from `/leerlingen/verzorger/schoolgegevens`.
+ * school_info detail must accept the same ids the list returns.
  */
 export const STANDARD_PAGES: Record<number, "VAKANTIES" | "SCHOOLGEGEVENS"> = {
   [-1]: "VAKANTIES",

@@ -16,6 +16,7 @@ import { examGradesTool } from "./tools/exam-grades.js";
 import { absenceTool } from "./tools/absence.js";
 import { messagesTool } from "./tools/messages.js";
 import { announcementsTool, newsTool } from "./tools/news.js";
+import { STANDARD_PAGES } from "./api/profile.js";
 import { childrenTool, schoolInfoTool, teachersTool } from "./tools/profile.js";
 import {
   consentsTool,
@@ -52,6 +53,31 @@ const numericId = () =>
   z
     .union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)])
     .transform(String);
+
+/**
+ * school_info list pages include the portal's built-in ids (-1 holidays, -2
+ * school contact data). Those are not nonnegative, so they cannot use
+ * numericId(); keep the allowed negatives in sync with STANDARD_PAGES
+ * (membership, not only a min range — so gaps stay rejected).
+ */
+const paginaIdArg = () => {
+  const builtin = Object.keys(STANDARD_PAGES).map(Number);
+  const builtinIds = new Set(builtin);
+  const minBuiltin = Math.min(0, ...builtin);
+  const builtinPattern = builtin.map(String).join("|");
+  return z
+    .union([
+      z
+        .number()
+        .int()
+        .min(minBuiltin)
+        .refine((n) => n >= 0 || builtinIds.has(n), {
+          message: "Unknown built-in paginaId",
+        }),
+      z.string().regex(new RegExp(`^(?:${builtinPattern}|\\d+)$`)),
+    ])
+    .transform(Number);
+};
 
 /** Free-text or numeric reference (subject name/abbreviation/uuid, page slug). */
 const textOrNumber = () => z.union([z.string(), z.number()]).transform(String);
@@ -141,7 +167,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Assignments (hand-ins)",
       description:
-        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (always a boolean: true only for an open hand-in past its deadline), description, attachments and links. status=open keeps upcoming and to-do ones, and by default hides past-due items where no digital hand-in is expected (inleveringenVerwacht 0, e.g. on paper; count in verborgenZonderInlevering); includeNoHandIn=true keeps them. Near-duplicates (same subject, topic, window and status, e.g. published to two groups) are merged by default, with the other ids in duplicaatToekenningIds; dedupe=false lists them separately. Use toekenningId with assignment_detail." +
+        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (boolean when the item has a hand-in window: true only if a digital hand-in was required, the deadline has passed and nothing was submitted; false for paper/in-class items with inleveringenVerwacht 0 or missing — also flagged geenDigitaleInlevering; omitted when there is no hand-in window), description, attachments and links. status=open keeps upcoming and to-do ones, and by default hides past-due items where no digital hand-in is expected (inleveringenVerwacht 0 or missing, e.g. on paper; count in verborgenZonderInlevering); includeNoHandIn=true keeps them. Near-duplicates (same subject, topic, window and status, e.g. published to two groups) are merged by default, with the other ids in duplicaatToekenningIds; dedupe=false lists them separately. Use toekenningId with assignment_detail." +
         " Every item lists bijlagen (fileUrl and/or bestanddataId for download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         status: z.enum(["open", "all"]).optional().describe("Default all."),
@@ -149,7 +175,7 @@ export function createServer(
           .boolean()
           .optional()
           .describe(
-            "With status=open: also show past-due items without a digital hand-in (inleveringenVerwacht 0). Default false.",
+            "With status=open: also show past-due items without a digital hand-in (inleveringenVerwacht 0 or missing). Default false.",
           ),
         dedupe: z
           .boolean()
@@ -169,7 +195,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Assignment detail",
       description:
-        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl and/or bestanddataId for download_attachment) and links, hand-in window, status, late flag and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
+        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl and/or bestanddataId for download_attachment) and links, hand-in window, status, teLaat (true only if a digital hand-in was required, the deadline has passed and nothing was submitted) and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
       inputSchema: {
         toekenningId: numericId().describe(
           "toekenningId from assignments (number or digit string).",
@@ -404,9 +430,7 @@ export function createServer(
       description:
         "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents; the built-in pages -1 (holidays) and -2 (school contact data) work too. Use teachers for staff and children for mentors.",
       inputSchema: {
-        paginaId: z
-          .union([z.number().int().min(-2), z.string().regex(/^(-[12]|\d+)$/)])
-          .transform(Number)
+        paginaId: paginaIdArg()
           .optional()
           .describe(
             "Information page id from the page list of a previous school_info call (-1 = holidays, -2 = school contact data).",

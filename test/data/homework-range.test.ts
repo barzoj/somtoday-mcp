@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { homeworkItemKey } from "../../src/api/homework.js";
 import { homeworkTool } from "../../src/tools/homework.js";
 import {
   accountMe,
@@ -8,7 +9,12 @@ import {
   toolContext,
   toolJson,
 } from "../helpers.js";
-import { LEERLING, handIn, toekenning } from "../fixtures/studiewijzer.js";
+import {
+  LEERLING,
+  handIn,
+  lesgroep,
+  toekenning,
+} from "../fixtures/studiewijzer.js";
 
 function server() {
   return routedFetch([
@@ -58,6 +64,19 @@ function server() {
     [/studiewijzeritemweektoekenningen/, () => listResponse([])],
   ]);
 }
+
+describe("homeworkItemKey", () => {
+  it("keys by soort and toekenningId; id-less items stay content-distinct", () => {
+    expect(homeworkItemKey({ soort: "dag", toekenningId: 7 })).toBe("dag:7");
+    expect(homeworkItemKey({ toekenningId: 7 })).toBe("unknown:7");
+    const a = { soort: "les" as const, onderwerp: "A" };
+    const b = { soort: "les" as const, onderwerp: "B" };
+    expect(homeworkItemKey(a)).toBe(`les:${JSON.stringify(a)}`);
+    expect(homeworkItemKey(b)).toBe(`les:${JSON.stringify(b)}`);
+    expect(homeworkItemKey(a)).not.toBe(homeworkItemKey(b));
+    expect(homeworkItemKey({})).toBe(`unknown:${JSON.stringify({})}`);
+  });
+});
 
 describe("homework (date range)", () => {
   it("groups every item by day with all fields, plus week items and deadlines", async () => {
@@ -211,6 +230,146 @@ describe("homework (date range)", () => {
     // 18 ISO weeks (36 to 53) x 3 list calls
     expect(weekCalls).toHaveLength(18 * 3);
     expect(maxInFlight).toBeLessThanOrEqual(6 * 3);
+  });
+
+  it("keeps distinct items that have no toekenningId instead of collapsing by soort", async () => {
+    const withoutId = (onderwerp: string, datumTijd: string) => ({
+      $type: "studiewijzer.RSWIDagToekenning",
+      // No self link → mapStudiewijzerItem leaves toekenningId undefined.
+      links: [],
+      datumTijd,
+      lesgroep,
+      studiewijzerItem: {
+        huiswerkType: "HUISWERK",
+        onderwerp,
+        omschrijving: onderwerp,
+      },
+      additionalObjects: { lesgroep },
+    });
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/heeftInleverperiode=true/, () => listResponse([])],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E43/,
+        () =>
+          listResponse([
+            withoutId("Alpha", "2026-10-20T08:00:00Z"),
+            withoutId("Beta", "2026-10-20T10:00:00Z"),
+          ]),
+      ],
+      [/studiewijzeritemdagtoekenningen/, () => listResponse([])],
+      [/studiewijzeritemafspraaktoekenningen/, () => listResponse([])],
+      [/studiewijzeritemweektoekenningen/, () => listResponse([])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await homeworkTool(ctx, { from: "2026-10-20", to: "2026-10-20" }),
+    ) as {
+      days: Array<{
+        items: Array<{ onderwerp?: string; toekenningId?: number }>;
+      }>;
+    };
+    expect(out.days[0]!.items.map((item) => item.onderwerp).toSorted()).toEqual(
+      ["Alpha", "Beta"],
+    );
+    expect(out.days[0]!.items.every((item) => item.toekenningId == null)).toBe(
+      true,
+    );
+  });
+
+  it("merges a 120-day range across week windows: all items, no duplicates, sorted by date", async () => {
+    // 2026-01-05 (Mon, ISO 2026~2) .. 2026-05-04 (Mon, ISO 2026~19) = 120 days.
+    // Boundary items on the first and last day; the same toekenning is also
+    // returned from an adjacent week so the merge must dedupe by id.
+    const firstDay = "2026-01-05";
+    const lastDay = "2026-05-04";
+    const midDay = "2026-03-04"; // Wednesday of ISO week 10
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/heeftInleverperiode=true/, () => listResponse([])],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E2/,
+        () =>
+          listResponse([
+            toekenning("Dag", 101, {
+              datumTijd: "2026-01-05T08:00:00Z",
+            }),
+            // Same id also appears in week 3 below — must appear once.
+            toekenning("Dag", 102, {
+              datumTijd: "2026-01-05T10:00:00Z",
+            }),
+          ]),
+      ],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E3/,
+        () =>
+          listResponse([
+            toekenning("Dag", 102, {
+              datumTijd: "2026-01-05T10:00:00Z",
+            }),
+          ]),
+      ],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E10/,
+        () =>
+          listResponse([
+            toekenning("Dag", 110, {
+              datumTijd: "2026-03-04T09:00:00Z",
+            }),
+          ]),
+      ],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E19/,
+        () =>
+          listResponse([
+            toekenning("Dag", 119, {
+              datumTijd: "2026-05-04T08:00:00Z",
+            }),
+          ]),
+      ],
+      [/studiewijzeritemdagtoekenningen/, () => listResponse([])],
+      [/studiewijzeritemafspraaktoekenningen/, () => listResponse([])],
+      [/studiewijzeritemweektoekenningen/, () => listResponse([])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await homeworkTool(ctx, { from: firstDay, to: lastDay }),
+    ) as {
+      from: string;
+      to: string;
+      days: Array<{
+        datum: string;
+        items: Array<{ toekenningId?: number; datum?: string }>;
+      }>;
+    };
+
+    expect(out.from).toBe(firstDay);
+    expect(out.to).toBe(lastDay);
+    expect(out.days).toHaveLength(120);
+    expect(out.days.map((day) => day.datum)).toEqual(
+      out.days.map((day) => day.datum).toSorted(),
+    );
+    expect(out.days[0]!.datum).toBe(firstDay);
+    expect(out.days[119]!.datum).toBe(lastDay);
+
+    const allItems = out.days.flatMap((day) => day.items);
+    expect(allItems.map((item) => item.toekenningId).toSorted()).toEqual([
+      101, 102, 110, 119,
+    ]);
+    expect(out.days[0]!.items.map((item) => item.toekenningId)).toEqual([
+      101, 102,
+    ]);
+    const mid = out.days.find((day) => day.datum === midDay);
+    expect(mid!.items.map((item) => item.toekenningId)).toEqual([110]);
+    expect(out.days[119]!.items.map((item) => item.toekenningId)).toEqual([
+      119,
+    ]);
+
+    // Every ISO week in the span was queried (18 weeks × 3 list endpoints).
+    const weekCalls = calls.filter((call) =>
+      /jaarWeek=|weeknummer=/.test(call.url.search),
+    );
+    expect(weekCalls).toHaveLength(18 * 3);
   });
 
   it("refuses ranges over 350 days", async () => {
