@@ -137,7 +137,7 @@ describe("school_info", () => {
 });
 
 describe("school_info built-in pages", () => {
-  it("opens -1 (holidays) and -2 (school data) instead of rejecting them", async () => {
+  it("opens every id from the list fixture, including -1/-2 and normal pages", async () => {
     const { fetchFn, calls } = routedFetch([
       [/\/leerlingen\/verzorger\/schoolgegevens/, schoolgegevens],
       [
@@ -157,6 +157,17 @@ describe("school_info built-in pages", () => {
           ]),
       ],
       [
+        /\/schoolinformatie\/gepubliceerd\/v2\/paginas\/9$/,
+        () =>
+          jsonResponse(200, {
+            id: 9,
+            titel: "Over de school",
+            introductie: "<p>Welkom</p>",
+            onderwerpen: [],
+            documentmappen: [],
+          }),
+      ],
+      [
         /\/schoolinformatie\/gepubliceerd\/v2\/paginas$/,
         () =>
           jsonResponse(200, {
@@ -167,34 +178,49 @@ describe("school_info built-in pages", () => {
                 titel: "Schoolgegevens",
                 standaardPagina: "SCHOOLGEGEVENS",
               },
+              {
+                id: 9,
+                titel: "Over de school",
+                introductie: "<b>Welkom</b>",
+                wijzigingsdatum: "2026-09-01T00:00:00Z",
+              },
             ],
           }),
       ],
     ]);
     const ctx = await toolContext(fetchFn);
-    const list = toolJson(await schoolInfoTool(ctx, {}));
-    expect(list.paginas).toEqual([
-      { paginaId: -1, standaardPagina: "VAKANTIES", titel: "Vakanties" },
-      {
-        paginaId: -2,
-        standaardPagina: "SCHOOLGEGEVENS",
-        titel: "Schoolgegevens",
-      },
-    ]);
-    const holidays = toolJson(await schoolInfoTool(ctx, { paginaId: -1 }));
-    expect(holidays.pagina).toEqual({
-      id: -1,
-      standaardPagina: "VAKANTIES",
-      vakanties: [
-        { naam: "Herfstvakantie", van: "2026-10-17", tot: "2026-10-25" },
-        { naam: "Kerstvakantie", van: "2026-12-19", tot: "2027-01-03" },
-      ],
-    });
-    const school = toolJson(await schoolInfoTool(ctx, { paginaId: -2 })) as {
-      pagina: { standaardPagina: string; schoolgegevens: unknown[] };
+    const list = toolJson(await schoolInfoTool(ctx, {})) as {
+      paginas: Array<{ paginaId: number }>;
     };
-    expect(school.pagina.standaardPagina).toBe("SCHOOLGEGEVENS");
-    expect(school.pagina.schoolgegevens).toHaveLength(1);
+    expect(list.paginas.map((page) => page.paginaId)).toEqual([-1, -2, 9]);
+
+    for (const { paginaId } of list.paginas) {
+      const detail = toolJson(await schoolInfoTool(ctx, { paginaId })) as {
+        pagina: Record<string, unknown>;
+      };
+      expect(detail.pagina).toBeDefined();
+      expect(detail.pagina.id).toBe(paginaId);
+      if (paginaId === -1) {
+        expect(detail.pagina).toMatchObject({
+          id: -1,
+          standaardPagina: "VAKANTIES",
+          vakanties: [
+            { naam: "Herfstvakantie", van: "2026-10-17", tot: "2026-10-25" },
+            { naam: "Kerstvakantie", van: "2026-12-19", tot: "2027-01-03" },
+          ],
+        });
+      } else if (paginaId === -2) {
+        expect(detail.pagina.standaardPagina).toBe("SCHOOLGEGEVENS");
+        expect(detail.pagina.schoolgegevens).toHaveLength(1);
+      } else {
+        expect(detail.pagina).toMatchObject({
+          id: paginaId,
+          titel: "Over de school",
+          introductie: "Welkom",
+        });
+      }
+    }
+
     expect(calls.some((call) => /paginas\/-/.test(call.url.pathname))).toBe(
       false,
     );
