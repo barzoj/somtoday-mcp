@@ -46,7 +46,7 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 
 - `lessons` takes an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and defaults to **tomorrow**. Range tools take `date`, or `from`/`to`.
 - If more than one child is linked to your account, pass `leerlingId` (the numeric id from `whoami`).
-- `teLaat` is true only when a digital hand-in was required, the deadline has passed and nothing was submitted. Past-due items with no online submission (`inleveringenVerwacht: 0`, e.g. paper/in class) get `teLaat: false` and `geenDigitaleInlevering: true`. `assignments` with `status=open` hides them and reports the count in `verborgenZonderInlevering`; pass `includeNoHandIn=true` to see them.
+- `teLaat` is true only when a digital hand-in was required, the deadline has passed and nothing was submitted. Past-due items with no online submission (`inleveringenVerwacht` 0 or missing, e.g. paper/in class) get `teLaat: false` and `geenDigitaleInlevering: true`. `assignments` with `status=open` hides them and reports the count in `verborgenZonderInlevering`; pass `includeNoHandIn=true` to see them.
 - `assignments` merges near-duplicates (same subject, topic, hand-in window and status, e.g. one assignment published to two groups) into one item with the other ids in `duplicaatToekenningIds`; pass `dedupe=false` to list them separately.
 - If a section is switched off for your account, the tool says so and does not call that part of the API.
 

@@ -171,6 +171,41 @@ describe("teLaat for digital vs non-digital hand-ins (#82)", () => {
     });
   });
 
+  it("maps a fixture with omitted inleveringenVerwacht to teLaat false via assignments", async () => {
+    const raw = handIn(15, "2026-09-01T06:00:00Z", "2026-09-10T21:59:00Z");
+    const moments = raw.studiewijzerItem.inlevermomenten as Array<{
+      inleveringenVerwacht?: number;
+    }>;
+    delete moments[0]!.inleveringenVerwacht;
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [
+        /studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/,
+        () => listResponse([raw]),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await assignmentsTool(ctx, {}, NOW)) as {
+      items: Array<Record<string, unknown>>;
+    };
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]).toMatchObject({
+      toekenningId: 15,
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+      geenDigitaleInlevering: true,
+    });
+    expect(
+      (out.items[0]!.inlevermoment as Record<string, unknown>)
+        .inleveringenVerwacht,
+    ).toBeUndefined();
+    const open = toolJson(
+      await assignmentsTool(ctx, { status: "open" }, NOW),
+    ) as { items: unknown[]; verborgenZonderInlevering?: number };
+    expect(open.items).toHaveLength(0);
+    expect(open.verborgenZonderInlevering).toBe(1);
+  });
+
   it("expectsDigitalHandIn is false without a positive count", () => {
     expect(expectsDigitalHandIn({})).toBe(false);
     expect(expectsDigitalHandIn({ inlevermoment: {} })).toBe(false);
