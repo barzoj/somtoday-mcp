@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { fetchAssignmentDetail } from "../../src/api/assignments.js";
+import {
+  categorize,
+  expectsDigitalHandIn,
+  fetchAssignmentDetail,
+} from "../../src/api/assignments.js";
 import {
   SUBMISSIONS_STUDENT_ONLY,
   assignmentDetailTool,
@@ -14,7 +18,14 @@ import {
   toolContext,
   toolJson,
 } from "../helpers.js";
-import { LEERLING, handIn } from "../fixtures/studiewijzer.js";
+import {
+  LEERLING,
+  handIn,
+  handInNoDigital,
+  toekenning,
+} from "../fixtures/studiewijzer.js";
+import { mapStudiewijzerItem } from "../../src/api/studiewijzer.js";
+import { amsterdamYmd } from "../../src/dates.js";
 
 const NOW = new Date("2026-10-20T12:00:00Z");
 
@@ -82,13 +93,149 @@ describe("assignments", () => {
   });
 });
 
-describe("assignments status=open without digital hand-in", () => {
-  function noHandIn(id: number, start: string, eind: string) {
-    const item = handIn(id, start, eind);
-    (item.studiewijzerItem.inlevermomenten as any)[0].inleveringenVerwacht = 0;
-    return item;
-  }
+describe("teLaat for digital vs non-digital hand-ins (#82)", () => {
+  it("old non-submission assignment (inleveringenVerwacht 0) returns teLaat false", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [
+        /studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/,
+        () =>
+          listResponse([
+            handInNoDigital(11, "2026-09-01T06:00:00Z", "2026-09-10T21:59:00Z"),
+          ]),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await assignmentsTool(ctx, {}, NOW)) as {
+      items: Array<Record<string, unknown>>;
+    };
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]).toMatchObject({
+      toekenningId: 11,
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+      geenDigitaleInlevering: true,
+      inlevermoment: { inleveringenVerwacht: 0 },
+    });
+  });
 
+  it("real missed digital submission still returns teLaat true", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [
+        /studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/,
+        () =>
+          listResponse([
+            handIn(14, "2026-10-01T06:00:00Z", "2026-10-19T21:59:00Z"),
+          ]),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await assignmentsTool(ctx, {}, NOW)) as {
+      items: Array<Record<string, unknown>>;
+    };
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]).toMatchObject({
+      toekenningId: 14,
+      categorie: "IN_TE_LEVEREN",
+      teLaat: true,
+      inlevermoment: { inleveringenVerwacht: 1 },
+    });
+    expect(out.items[0]!.geenDigitaleInlevering).toBeUndefined();
+  });
+
+  it("omits teLaat when there is no inlevermoment window", () => {
+    const raw = toekenning("Dag", 99, {
+      datumTijd: "2026-09-01T06:00:00Z",
+    });
+    const view = mapStudiewijzerItem(raw as any, LEERLING, amsterdamYmd);
+    expect(view.inlevermoment).toBeUndefined();
+    expect(categorize(view, NOW)).toEqual({});
+  });
+
+  it("treats a past window with missing inleveringenVerwacht as not late", () => {
+    const view = {
+      soort: "dag" as const,
+      huiswerkType: "HUISWERK",
+      bijlagen: [],
+      externeMaterialen: [],
+      inlevermoment: {
+        start: "2026-09-01T06:00:00Z",
+        eind: "2026-09-10T21:59:00Z",
+      },
+    };
+    expect(categorize(view, NOW)).toEqual({
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+      geenDigitaleInlevering: true,
+    });
+  });
+
+  it("maps a fixture with omitted inleveringenVerwacht to teLaat false via assignments", async () => {
+    const raw = handIn(15, "2026-09-01T06:00:00Z", "2026-09-10T21:59:00Z");
+    const moments = raw.studiewijzerItem.inlevermomenten as Array<{
+      inleveringenVerwacht?: number;
+    }>;
+    delete moments[0]!.inleveringenVerwacht;
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [
+        /studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/,
+        () => listResponse([raw]),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await assignmentsTool(ctx, {}, NOW)) as {
+      items: Array<Record<string, unknown>>;
+    };
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]).toMatchObject({
+      toekenningId: 15,
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+      geenDigitaleInlevering: true,
+    });
+    expect(
+      (out.items[0]!.inlevermoment as Record<string, unknown>)
+        .inleveringenVerwacht,
+    ).toBeUndefined();
+    const open = toolJson(
+      await assignmentsTool(ctx, { status: "open" }, NOW),
+    ) as { items: unknown[]; verborgenZonderInlevering?: number };
+    expect(open.items).toHaveLength(0);
+    expect(open.verborgenZonderInlevering).toBe(1);
+  });
+
+  it("expectsDigitalHandIn is false without a positive count", () => {
+    expect(expectsDigitalHandIn({})).toBe(false);
+    expect(expectsDigitalHandIn({ inlevermoment: {} })).toBe(false);
+    expect(
+      expectsDigitalHandIn({ inlevermoment: { inleveringenVerwacht: 0 } }),
+    ).toBe(false);
+    expect(
+      expectsDigitalHandIn({ inlevermoment: { inleveringenVerwacht: 1 } }),
+    ).toBe(true);
+  });
+
+  it("open window without eind is not late", () => {
+    const view = {
+      soort: "dag" as const,
+      huiswerkType: "HUISWERK",
+      bijlagen: [],
+      externeMaterialen: [],
+      inlevermoment: {
+        start: "2026-09-01T06:00:00Z",
+        inleveringenVerwacht: 1,
+      },
+    };
+    expect(categorize(view, NOW)).toEqual({
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+    });
+  });
+});
+
+describe("assignments status=open without digital hand-in", () => {
   it("hides past-due items that expect no digital hand-in unless asked", async () => {
     const { fetchFn } = routedFetch([
       [/\/account\/me/, () => accountMe(LEERLING)],
@@ -96,9 +243,9 @@ describe("assignments status=open without digital hand-in", () => {
         /studiewijzeritemdagtoekenningen.*heeftInleverperiode=true/,
         () =>
           listResponse([
-            noHandIn(11, "2026-09-01T06:00:00Z", "2026-09-10T21:59:00Z"),
-            noHandIn(12, "2026-10-01T06:00:00Z", "2026-10-30T21:59:00Z"),
-            noHandIn(13, "2026-11-01T06:00:00Z", "2026-11-10T21:59:00Z"),
+            handInNoDigital(11, "2026-09-01T06:00:00Z", "2026-09-10T21:59:00Z"),
+            handInNoDigital(12, "2026-10-01T06:00:00Z", "2026-10-30T21:59:00Z"),
+            handInNoDigital(13, "2026-11-01T06:00:00Z", "2026-11-10T21:59:00Z"),
             handIn(14, "2026-10-01T06:00:00Z", "2026-10-19T21:59:00Z"),
           ]),
       ],
@@ -123,15 +270,11 @@ describe("assignments status=open without digital hand-in", () => {
       11, 14, 12, 13,
     ]);
     expect(withPaper.verborgenZonderInlevering).toBeUndefined();
-    // Nothing was due digitally, so the old item is not late.
     expect(withPaper.items[0]).toMatchObject({
       toekenningId: 11,
-      categorie: "IN_TE_LEVEREN",
       teLaat: false,
       geenDigitaleInlevering: true,
     });
-    // The open one with a later deadline is just open; a digital one past due stays late.
-    expect(withPaper.items[2].geenDigitaleInlevering).toBeUndefined();
     expect(withPaper.items[1]).toMatchObject({
       toekenningId: 14,
       teLaat: true,

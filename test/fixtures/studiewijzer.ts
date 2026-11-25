@@ -139,3 +139,15 @@ export function handIn(
     },
   );
 }
+
+/** Past or open window, but Somtoday expects no digital upload (paper / in class). */
+export function handInNoDigital(id: number, start: string, eind: string) {
+  const item = handIn(id, start, eind);
+  const moments = item.studiewijzerItem.inlevermomenten as Array<{
+    inleveringenVerwacht: number;
+    omschrijving: string;
+  }>;
+  moments[0]!.inleveringenVerwacht = 0;
+  moments[0]!.omschrijving = "Inleveren op papier";
+  return item;
+}
