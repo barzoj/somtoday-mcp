@@ -17,6 +17,7 @@ import {
 } from "./studiewijzer.js";
 import { htmlToPlain } from "../html.js";
 import { HOMEWORK_ADDITIONALS } from "../constants.js";
+import { mapInBatches, WEEKS_PER_BATCH } from "./batch.js";
 import { repeatedParams, type ApiClient } from "./client.js";
 import type { HomeworkItem, ItemList } from "./types.js";
 
@@ -171,22 +172,6 @@ export type HomeworkRange = {
   weken: Array<{ jaar: number; week: number; items: StudiewijzerItemView[] }>;
 };
 
-/** ISO weeks fetched at the same time (3 list calls each), so long ranges stay polite. */
-export const HOMEWORK_WEEKS_PER_BATCH = 6;
-
-/** `Promise.all` over `items`, at most `size` at a time, results in input order. */
-export async function mapInBatches<T, R>(
-  items: T[],
-  size: number,
-  run: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = [];
-  for (let start = 0; start < items.length; start += size) {
-    out.push(...(await Promise.all(items.slice(start, start + size).map(run))));
-  }
-  return out;
-}
-
 /**
  * Stable id for merge/dedupe across week windows. Prefer soort + toekenning id;
  * when the id is missing, fall back to the whole object so distinct items are
@@ -218,7 +203,7 @@ export async function fetchHomeworkRange(
   const weeks = isoWeeksInRange(from, to);
   const perWeek = await mapInBatches(
     weeks,
-    HOMEWORK_WEEKS_PER_BATCH,
+    WEEKS_PER_BATCH,
     async ({ year, week }) => {
       const jaarWeekQuery = homeworkQuery(leerlingId);
       jaarWeekQuery.set("jaarWeek", `${year}~${week}`);

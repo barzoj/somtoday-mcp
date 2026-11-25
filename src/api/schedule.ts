@@ -1,5 +1,6 @@
 import { amsterdamYmd, dayOf, eachDay, isoWeeksInRange } from "../dates.js";
 import { htmlToPlain } from "../html.js";
+import { mapInBatches, WEEKS_PER_BATCH } from "./batch.js";
 import { ApiNotAvailableError, type ApiClient } from "./client.js";
 import { linkId, simplify } from "./simplify.js";
 import {
@@ -166,6 +167,21 @@ export async function fetchHolidays(
     .sort((a, b) => (a.van ?? "").localeCompare(b.van ?? ""));
 }
 
+/**
+ * Stable id for merge/dedupe across week windows. Prefer appointment id;
+ * when missing, fall back to the whole object so distinct items stay distinct.
+ */
+export function scheduleItemKey(item: ScheduleItemView): string {
+  if (item.id != null) {
+    return String(item.id);
+  }
+  return JSON.stringify(item);
+}
+
+/**
+ * Timetable for a date range, loaded the way the portal does: one request per
+ * ISO week (batched), then merged and deduped by {@link scheduleItemKey}.
+ */
 export async function fetchSchedule(
   client: ApiClient,
   leerlingId: number,
@@ -179,8 +195,10 @@ export async function fetchSchedule(
   days: Array<{ datum: string; vakantie?: string; items: ScheduleItemView[] }>;
 }> {
   const notes: RawStatus[] = [];
-  const weeks = await Promise.all(
-    isoWeeksInRange(from, to).map(({ year, week }) =>
+  const weeks = await mapInBatches(
+    isoWeeksInRange(from, to),
+    WEEKS_PER_BATCH,
+    ({ year, week }) =>
       client.getAll<RawAfspraak>(
         `/afspraakitems/${leerlingId}/jaar/${year}/week/${week}`,
         undefined,
@@ -193,13 +211,19 @@ export async function fetchSchedule(
           },
         },
       ),
-    ),
   );
   const meldingen = realMeldingen(notes);
   const holidays = await fetchHolidayItems(client, leerlingId);
+  const seen = new Set<string>();
   const items = weeks
     .flatMap((week) => week.items)
     .map(mapScheduleItem)
+    .filter((item) => {
+      const key = scheduleItemKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .sort((a, b) => (a.begin ?? "").localeCompare(b.begin ?? ""));
   const vakanties = holidays
     .map((holiday) => {
