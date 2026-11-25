@@ -26,11 +26,22 @@ export type AssignmentView = StudiewijzerItemView & {
 };
 
 /**
- * Same buckets as the portal's assignment list. `teLaat` is always a boolean
- * once an item has a window: true only for an open hand-in (IN_TE_LEVEREN)
+ * Somtoday expects a digital upload when `inleveringenVerwacht` is a positive
+ * count. Zero means paper / in class (or otherwise no online submission).
+ */
+export function expectsDigitalHandIn(item: {
+  inlevermoment?: { inleveringenVerwacht?: number };
+}): boolean {
+  return (item.inlevermoment?.inleveringenVerwacht ?? 0) > 0;
+}
+
+/**
+ * Same buckets as the portal's assignment list. `teLaat` is set only when the
+ * item has a hand-in window: true only for an open hand-in (IN_TE_LEVEREN)
  * whose deadline has passed and that expects a digital hand-in. A past item
- * with `inleveringenVerwacht: 0` (handed in on paper or in class) is not late;
- * it gets `geenDigitaleInlevering: true` instead.
+ * with no required online submission (`inleveringenVerwacht` 0 / missing) is
+ * not late; it gets `teLaat: false` and `geenDigitaleInlevering: true`.
+ * Without an inlevermoment window, `teLaat` is omitted.
  */
 export function categorize(
   item: StudiewijzerItemView,
@@ -46,12 +57,13 @@ export function categorize(
   const eind = item.inlevermoment?.eind
     ? new Date(item.inlevermoment.eind)
     : undefined;
+  // No online hand-in window → nothing can be "late".
   if (!start) return {};
   if (start > now) return { categorie: "AANKOMEND", teLaat: false };
   const status = item.inleverStatus;
   if (!status || status === "HEROPEND") {
     const verlopen = eind ? eind < now : false;
-    if (verlopen && item.inlevermoment?.inleveringenVerwacht === 0) {
+    if (verlopen && !expectsDigitalHandIn(item)) {
       return {
         categorie: "IN_TE_LEVEREN",
         teLaat: false,
@@ -69,7 +81,7 @@ export function categorize(
 
 /**
  * A past-due open item where Somtoday expects no digital hand-in
- * (`inleveringenVerwacht: 0`, e.g. handed in on paper or in class). It stays
+ * (`inleveringenVerwacht` 0 / missing, e.g. paper or in class). It stays
  * IN_TE_LEVEREN forever (never late), so `status=open` hides it by default.
  */
 export function isPastWithoutHandIn(item: AssignmentView): boolean {

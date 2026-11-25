@@ -186,9 +186,26 @@ export async function mapInBatches<T, R>(
 }
 
 /**
+ * Stable id for merge/dedupe across week windows. Prefer soort + toekenning id;
+ * when the id is missing, fall back to the whole object so distinct items are
+ * not collapsed into one key per soort.
+ */
+export function homeworkItemKey(item: {
+  soort?: string;
+  toekenningId?: number;
+}): string {
+  const soort = item.soort ?? "unknown";
+  if (item.toekenningId != null) {
+    return `${soort}:${item.toekenningId}`;
+  }
+  return `${soort}:${JSON.stringify(item)}`;
+}
+
+/**
  * Everything in the study planner for a date range, the way the portal loads
  * it: per ISO week the lesson and day items (`jaarWeek`) and the week items
- * (`weeknummer`), plus all hand-ins, each list fully paged.
+ * (`weeknummer`), plus all hand-ins, each list fully paged. Week windows are
+ * merged and deduped by {@link homeworkItemKey}; days stay sorted by date.
  */
 export async function fetchHomeworkRange(
   client: ApiClient,
@@ -243,7 +260,7 @@ export async function fetchHomeworkRange(
     .flatMap((entry) => entry.dated)
     .map(map)
     .filter((item) => {
-      const key = `${item.soort}:${item.toekenningId ?? JSON.stringify(item)}`;
+      const key = homeworkItemKey(item);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

@@ -31,6 +31,8 @@ describe("id-like inputs", () => {
     ["messages", { conversatieId: 9 }],
     ["school_info", { paginaId: "9" }],
     ["school_info", { paginaId: -1 }],
+    ["school_info", { paginaId: "-1" }],
+    ["school_info", { paginaId: -2 }],
     ["school_info", { paginaId: "-2" }],
     ["download_attachment", { bestanddataId: "abc-123" }],
     ["parent_evening", { id: 12 }],
