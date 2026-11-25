@@ -141,7 +141,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Assignments (hand-ins)",
       description:
-        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (always a boolean: true only for an open hand-in past its deadline), description, attachments and links. status=open keeps upcoming and to-do ones, and by default hides past-due items where no digital hand-in is expected (inleveringenVerwacht 0, e.g. on paper; count in verborgenZonderInlevering); includeNoHandIn=true keeps them. Near-duplicates (same subject, topic, window and status, e.g. published to two groups) are merged by default, with the other ids in duplicaatToekenningIds; dedupe=false lists them separately. Use toekenningId with assignment_detail." +
+        "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (boolean when the item has a hand-in window: true only if a digital hand-in was required, the deadline has passed and nothing was submitted; false for paper/in-class items with inleveringenVerwacht 0 or missing — also flagged geenDigitaleInlevering; omitted when there is no hand-in window), description, attachments and links. status=open keeps upcoming and to-do ones, and by default hides past-due items where no digital hand-in is expected (inleveringenVerwacht 0 or missing, e.g. on paper; count in verborgenZonderInlevering); includeNoHandIn=true keeps them. Near-duplicates (same subject, topic, window and status, e.g. published to two groups) are merged by default, with the other ids in duplicaatToekenningIds; dedupe=false lists them separately. Use toekenningId with assignment_detail." +
         " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         status: z.enum(["open", "all"]).optional().describe("Default all."),
@@ -149,7 +149,7 @@ export function createServer(
           .boolean()
           .optional()
           .describe(
-            "With status=open: also show past-due items without a digital hand-in (inleveringenVerwacht 0). Default false.",
+            "With status=open: also show past-due items without a digital hand-in (inleveringenVerwacht 0 or missing). Default false.",
           ),
         dedupe: z
           .boolean()
@@ -169,7 +169,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Assignment detail",
       description:
-        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl) and links, hand-in window, status, late flag and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
+        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl) and links, hand-in window, status, teLaat (true only if a digital hand-in was required, the deadline has passed and nothing was submitted) and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
       inputSchema: {
         toekenningId: numericId().describe(
           "toekenningId from assignments (number or digit string).",
