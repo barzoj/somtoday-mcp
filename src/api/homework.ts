@@ -185,15 +185,20 @@ export async function mapInBatches<T, R>(
   return out;
 }
 
-/** Stable id for merge/dedupe across week windows (soort + toekenning id). */
+/**
+ * Stable id for merge/dedupe across week windows. Prefer soort + toekenning id;
+ * when the id is missing, fall back to the whole object so distinct items are
+ * not collapsed into one key per soort.
+ */
 export function homeworkItemKey(item: {
   soort?: string;
   toekenningId?: number;
 }): string {
-  if (item.toekenningId == null) {
-    return `anon:${item.soort ?? "unknown"}`;
+  const soort = item.soort ?? "unknown";
+  if (item.toekenningId != null) {
+    return `${soort}:${item.toekenningId}`;
   }
-  return `${item.soort ?? "unknown"}:${item.toekenningId}`;
+  return `${soort}:${JSON.stringify(item)}`;
 }
 
 /**

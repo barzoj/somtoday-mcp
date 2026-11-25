@@ -9,7 +9,12 @@ import {
   toolContext,
   toolJson,
 } from "../helpers.js";
-import { LEERLING, handIn, toekenning } from "../fixtures/studiewijzer.js";
+import {
+  LEERLING,
+  handIn,
+  lesgroep,
+  toekenning,
+} from "../fixtures/studiewijzer.js";
 
 function server() {
   return routedFetch([
@@ -61,11 +66,15 @@ function server() {
 }
 
 describe("homeworkItemKey", () => {
-  it("keys by soort and toekenningId, with fallbacks when either is missing", () => {
+  it("keys by soort and toekenningId; id-less items stay content-distinct", () => {
     expect(homeworkItemKey({ soort: "dag", toekenningId: 7 })).toBe("dag:7");
     expect(homeworkItemKey({ toekenningId: 7 })).toBe("unknown:7");
-    expect(homeworkItemKey({ soort: "les" })).toBe("anon:les");
-    expect(homeworkItemKey({})).toBe("anon:unknown");
+    const a = { soort: "les" as const, onderwerp: "A" };
+    const b = { soort: "les" as const, onderwerp: "B" };
+    expect(homeworkItemKey(a)).toBe(`les:${JSON.stringify(a)}`);
+    expect(homeworkItemKey(b)).toBe(`les:${JSON.stringify(b)}`);
+    expect(homeworkItemKey(a)).not.toBe(homeworkItemKey(b));
+    expect(homeworkItemKey({})).toBe(`unknown:${JSON.stringify({})}`);
   });
 });
 
@@ -221,6 +230,51 @@ describe("homework (date range)", () => {
     // 18 ISO weeks (36 to 53) x 3 list calls
     expect(weekCalls).toHaveLength(18 * 3);
     expect(maxInFlight).toBeLessThanOrEqual(6 * 3);
+  });
+
+  it("keeps distinct items that have no toekenningId instead of collapsing by soort", async () => {
+    const withoutId = (onderwerp: string, datumTijd: string) => ({
+      $type: "studiewijzer.RSWIDagToekenning",
+      // No self link → mapStudiewijzerItem leaves toekenningId undefined.
+      links: [],
+      datumTijd,
+      lesgroep,
+      studiewijzerItem: {
+        huiswerkType: "HUISWERK",
+        onderwerp,
+        omschrijving: onderwerp,
+      },
+      additionalObjects: { lesgroep },
+    });
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/heeftInleverperiode=true/, () => listResponse([])],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E43/,
+        () =>
+          listResponse([
+            withoutId("Alpha", "2026-10-20T08:00:00Z"),
+            withoutId("Beta", "2026-10-20T10:00:00Z"),
+          ]),
+      ],
+      [/studiewijzeritemdagtoekenningen/, () => listResponse([])],
+      [/studiewijzeritemafspraaktoekenningen/, () => listResponse([])],
+      [/studiewijzeritemweektoekenningen/, () => listResponse([])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await homeworkTool(ctx, { from: "2026-10-20", to: "2026-10-20" }),
+    ) as {
+      days: Array<{
+        items: Array<{ onderwerp?: string; toekenningId?: number }>;
+      }>;
+    };
+    expect(out.days[0]!.items.map((item) => item.onderwerp).toSorted()).toEqual(
+      ["Alpha", "Beta"],
+    );
+    expect(out.days[0]!.items.every((item) => item.toekenningId == null)).toBe(
+      true,
+    );
   });
 
   it("merges a 120-day range across week windows: all items, no duplicates, sorted by date", async () => {
