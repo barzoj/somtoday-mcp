@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/barzoj/somtoday-mcp/compare/v0.3.4...v0.4.0) (2026-11-25)
+
+
+### Features
+
+* **download_attachment:** extract text from Word (.docx) files ([942b6a5](https://github.com/barzoj/somtoday-mcp/commit/942b6a56076f1ba69187acea3604b5e744cefa6d))
+* **download_attachment:** save attachments to disk and download by bestanddataId ([942b6a5](https://github.com/barzoj/somtoday-mcp/commit/942b6a56076f1ba69187acea3604b5e744cefa6d))
+* **homework:** date ranges up to 350 days, fetched week by week ([942b6a5](https://github.com/barzoj/somtoday-mcp/commit/942b6a56076f1ba69187acea3604b5e744cefa6d))
+
+
+### Bug Fixes
+
+* **assignments:** do not flag past items without digital hand-in as late ([942b6a5](https://github.com/barzoj/somtoday-mcp/commit/942b6a56076f1ba69187acea3604b5e744cefa6d))
+* **attachments:** keep bijlage id, bestanddataId and file links of file-record attachments ([942b6a5](https://github.com/barzoj/somtoday-mcp/commit/942b6a56076f1ba69187acea3604b5e744cefa6d))
+* **school_info:** open the built-in pages -1 and -2 ([942b6a5](https://github.com/barzoj/somtoday-mcp/commit/942b6a56076f1ba69187acea3604b5e744cefa6d))
+
 ## [0.3.4](https://github.com/barzoj/somtoday-mcp/compare/v0.3.3...v0.3.4) (2026-11-24)
 
 
