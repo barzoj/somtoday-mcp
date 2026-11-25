@@ -1,9 +1,8 @@
-// download_attachment: saving to disk, Word text, bestanddataId via
-// /gcs/download. Synthetic fixtures only; no real files or accounts.
+// download_attachment: saving to disk and bestanddataId via /gcs/download.
+// Synthetic fixtures only; no real files or accounts.
 import { mkdtemp, readFile, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   downloadDir,
@@ -13,12 +12,6 @@ import {
 import { mapAttachment } from "../../src/api/studiewijzer.js";
 import { downloadAttachmentTool } from "../../src/tools/download.js";
 import { minimalPdf, routedFetch, toolContext, toolJson } from "../helpers.js";
-
-const DOCX = await readFile(
-  fileURLToPath(new URL("../fixtures/werkblad.docx", import.meta.url)),
-);
-const DOCX_TYPE =
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 let dir: string;
 const previous = process.env.SOMTODAY_MCP_DOWNLOAD_DIR;
@@ -87,6 +80,50 @@ describe("mapAttachment", () => {
       fileUrl: "https://files.somtoday.nl/a.pdf",
     });
   });
+
+  it("prefers a downloadable bestand over assemblyResults", () => {
+    expect(
+      mapAttachment({
+        omschrijving: "Beide",
+        bestand: {
+          bestandsnaam: "nieuw.pdf",
+          bestanddataId: "id-nieuw",
+        },
+        assemblyResults: [
+          {
+            assemblyFileType: "DOCUMENT",
+            fileName: "oud.pdf",
+            fileUrl: "https://files.somtoday.nl/oud.pdf",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      fileName: "nieuw.pdf",
+      bestanddataId: "id-nieuw",
+      fileUrl: undefined,
+    });
+  });
+
+  it("uses assemblyResults when bestand is name-only (no download key)", () => {
+    expect(
+      mapAttachment({
+        omschrijving: "Gemengd",
+        bestand: { bestandsnaam: "naamloos.pdf" },
+        assemblyResults: [
+          {
+            assemblyFileType: "DOCUMENT",
+            fileName: "echt.pdf",
+            fileUrl: "https://files.somtoday.nl/echt.pdf",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      naam: "Gemengd",
+      fileName: "echt.pdf",
+      fileUrl: "https://files.somtoday.nl/echt.pdf",
+      type: "DOCUMENT",
+    });
+  });
 });
 
 describe("sanitizeFileName", () => {
@@ -110,13 +147,20 @@ describe("sanitizeFileName", () => {
   });
 });
 
-describe("download_attachment saves and extracts", () => {
-  it("saves a .docx from a fileUrl and returns its text, never overwriting", async () => {
+describe("download_attachment saves metadata only", () => {
+  it("saves a file from a fileUrl without extracting text, never overwriting", async () => {
+    const body = new Uint8Array([1, 2, 3, 4, 5]);
     const url = "https://files.somtoday.nl/bijlage/1/Lesstof%20H3.docx";
     const { fetchFn, calls } = routedFetch([
       [
         /\/bijlage\/1\//,
-        () => new Response(DOCX, { headers: { "content-type": DOCX_TYPE } }),
+        () =>
+          new Response(body, {
+            headers: {
+              "content-type":
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+          }),
       ],
     ]);
     const ctx = await toolContext(fetchFn);
@@ -124,17 +168,21 @@ describe("download_attachment saves and extracts", () => {
     const second = toolJson(await downloadAttachmentTool(ctx, { url }));
     expect(first).toMatchObject({
       fileName: "Lesstof H3.docx",
-      contentType: DOCX_TYPE,
+      contentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       savedPath: join(dir, "Lesstof H3.docx"),
+      bytes: 5,
     });
-    expect(first.text).toContain("Hoofdstuk 3 samenvatten");
+    expect(first.text).toBeUndefined();
     expect(second.savedPath).toBe(join(dir, "Lesstof H3 (1).docx"));
-    expect(await readFile(first.savedPath as string)).toEqual(DOCX);
-    expect((await stat(first.savedPath as string)).size).toBe(DOCX.length);
+    expect(await readFile(first.savedPath as string)).toEqual(
+      Buffer.from(body),
+    );
+    expect((await stat(first.savedPath as string)).size).toBe(5);
     expect(calls[0]?.headers.get("authorization")).toBeNull();
   });
 
-  it("skips text with extractText=false and skips the file with save=false", async () => {
+  it("skips the file with save=false and still returns metadata", async () => {
     const url = "https://files.somtoday.nl/x/werkblad.pdf";
     const { fetchFn } = routedFetch([
       [
@@ -146,23 +194,20 @@ describe("download_attachment saves and extracts", () => {
       ],
     ]);
     const ctx = await toolContext(fetchFn);
-    const noText = toolJson(
-      await downloadAttachmentTool(ctx, { url, extractText: false }),
-    );
-    expect(noText.text).toBeUndefined();
-    expect(noText.savedPath).toBe(join(dir, "werkblad.pdf"));
     const noSave = toolJson(
       await downloadAttachmentTool(ctx, { url, save: false }),
     );
     expect(noSave.savedPath).toBeUndefined();
-    expect(noSave.text).toContain("Opdracht");
-    expect(await readdir(dir)).toEqual(["werkblad.pdf"]);
+    expect(noSave.text).toBeUndefined();
+    expect(noSave.contentType).toBe("application/pdf");
+    expect(await readdir(dir)).toEqual([]);
   });
 
   it("gets a signed link for a bestanddataId with the token, then fetches it without one", async () => {
     const id = "b7f1c2d4-0000-4000-8000-000000000001";
     const signed =
       "https://storage.example.test/bucket/obj-123?X-Goog-Signature=abc";
+    const body = new TextEncoder().encode("binary-payload");
     const { fetchFn, calls } = routedFetch([
       [
         new RegExp(`/gcs/download/${id}$`),
@@ -172,7 +217,7 @@ describe("download_attachment saves and extracts", () => {
       [
         /\/bucket\/obj-123/,
         () =>
-          new Response(DOCX, {
+          new Response(body, {
             headers: { "content-type": "application/octet-stream" },
           }),
       ],
@@ -189,8 +234,9 @@ describe("download_attachment saves and extracts", () => {
       host: "storage.example.test",
       fileName: "Lesstof H3.docx",
       savedPath: join(dir, "Lesstof H3.docx"),
+      bytes: body.byteLength,
     });
-    expect(out.text).toContain("paragraaf 3.1");
+    expect(out.text).toBeUndefined();
     const api = calls.find((call) => call.url.pathname.includes("/gcs/"));
     const file = calls.find((call) => call.url.pathname.includes("/bucket/"));
     expect(api?.headers.get("authorization")).toMatch(/^Bearer /);
@@ -217,7 +263,12 @@ describe("download_attachment saves and extracts", () => {
         save: false,
       }),
     );
-    expect(out.text).toBe("hallo");
+    expect(out).toMatchObject({
+      contentType: "text/plain",
+      bytes: 5,
+      host: "storage.example.test",
+    });
+    expect(out.text).toBeUndefined();
     expect(calls.some((call) => call.url.hostname === "cdn.other.test")).toBe(
       false,
     );

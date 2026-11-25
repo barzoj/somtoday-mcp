@@ -110,4 +110,44 @@ describe("homework filters", () => {
     );
     expect(view.omschrijving).toBe("Read chapter 3 & notes");
   });
+
+  it("keeps downloadable bijlage fields (not filenames only)", () => {
+    const view = mapHomework({
+      studiewijzerItem: {
+        bijlagen: [
+          {
+            omschrijving: "Werkblad",
+            bestand: {
+              bestandsnaam: "w.pdf",
+              bestanddataId: "bd-1",
+            },
+          },
+          {
+            assemblyResults: [
+              {
+                assemblyFileType: "DOCUMENT",
+                fileName: "a.pdf",
+                fileUrl: "https://files.somtoday.nl/a.pdf",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(view.bijlagen).toEqual([
+      {
+        naam: "Werkblad",
+        fileName: "w.pdf",
+        fileExtension: "pdf",
+        bestanddataId: "bd-1",
+        fileUrl: undefined,
+      },
+      {
+        naam: "a.pdf",
+        fileName: "a.pdf",
+        fileUrl: "https://files.somtoday.nl/a.pdf",
+        type: "DOCUMENT",
+      },
+    ]);
+  });
 });

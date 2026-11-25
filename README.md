@@ -41,7 +41,7 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 | `signing_document`    | The (signed) PDF of one signing request, as the portal's download button: pass `document.id`; returns extracted text, max 10 MB. Fetched with your login token, so it is not a `fileUrl` for `download_attachment`.                                                                                                     |
 | `parent_evening`      | Parent-evening details (slots, teachers); finds invitations in your messages (read-only; nothing is booked).                                                                                                                                                                                                            |
 | `consents`            | Consents such as use of photos, as set in the portal (read-only).                                                                                                                                                                                                                                                       |
-| `download_attachment` | Save an attachment to disk and read it: pass its `fileUrl` (as `url`) or its `bestanddataId`. Returns `savedPath`, type, size and the text of PDF, Word (.docx), text, HTML, CSV and JSON files (`extractText=false` to skip, `save=false` to not save). Max 10 MB. See [Attachments](#attachments).                    |
+| `download_attachment` | Save an attachment to disk: pass its `fileUrl` (as `url`) or its `bestanddataId`. Returns `savedPath`, type, size and fileName (`save=false` to skip writing). Max 10 MB. No text extraction. See [Attachments](#attachments).                                                                                          |
 | `auth_status`         | Whether a session is stored, where, and how the last token renewal went. Never returns tokens.                                                                                                                                                                                                                          |
 
 - `lessons` takes an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and defaults to **tomorrow**. Range tools take `date`, or `from`/`to`.
@@ -75,7 +75,7 @@ Timetables, homework, and grades are personal data about children. Keep the outp
 
 ## Install
 
-Requires Node.js 24 or newer (the PDF text extraction used by `download_attachment` and `signing_document` depends on unpdf 2, which requires Node 24).
+Requires Node.js 24 or newer (the PDF text extraction used by `signing_document` depends on unpdf 2, which requires Node 24).
 
 Published on npm as [`somtoday-mcp`](https://www.npmjs.com/package/somtoday-mcp), with [provenance](https://docs.npmjs.com/generating-provenance-statements) from this repository's release workflow.
 

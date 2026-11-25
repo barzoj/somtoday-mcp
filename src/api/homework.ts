@@ -9,7 +9,10 @@ import {
 } from "../dates.js";
 import {
   compactItem,
+  mapAttachment,
   mapStudiewijzerItem,
+  type AttachmentView,
+  type RawBijlage,
   type RawToekenning,
   type StudiewijzerItemView,
 } from "./studiewijzer.js";
@@ -30,7 +33,7 @@ export type HomeworkView = {
   eindGeldigheid?: string;
   inleveringenAantal?: number;
   inleveringenVerwacht?: number;
-  bijlagen: string[];
+  bijlagen: AttachmentView[];
 };
 
 export function homeworkQuery(
@@ -90,9 +93,9 @@ export function mapHomework(item: HomeworkItem): HomeworkView {
   const subject = lesgroep?.vak?.naam ?? lesgroep?.naam;
   const swi = item.studiewijzerItem;
   const window = swi?.inlevermomenten?.[0];
-  const bijlagen = (swi?.bijlagen ?? [])
-    .map((bijlage) => bijlage.bestand?.bestandsnaam)
-    .filter((name): name is string => Boolean(name));
+  const bijlagen = ((swi?.bijlagen ?? []) as RawBijlage[])
+    .map(mapAttachment)
+    .filter((value): value is AttachmentView => Boolean(value));
 
   return {
     subject,
