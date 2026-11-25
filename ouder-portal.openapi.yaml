@@ -2343,9 +2343,18 @@ components:
       description: |
         `resultaten.RGeldendVoortgangsdossierResultaat`. The latest-results
         call returned only `type=Toetskolom`. Herkansing codes seen there are
-        `EenKeerHoogste`, `EenkeerGemiddeld`, and `Geen`. Toetssoort codes
-        seen there are `Handelingsdeel`, `Praktische opdracht`,
-        `Schriftelijke overhoring`, and `Theoretische toets`.
+        `EenKeerHoogste`, `EenkeerGemiddeld`, and `Geen`. The leerling web
+        client (NONtoday/leerling-source `Herkansingssoort`) also uses
+        `EenKeerLaatste`, `TweeKeerHoogste`, `TweeKeerLaatste`, and
+        `TweeKeerGemiddeld`. Toetssoort codes seen there are `Handelingsdeel`,
+        `Praktische opdracht`, `Schriftelijke overhoring`, and
+        `Theoretische toets`.
+
+        Retake *scores* live on this resource (eerste poging / herkansing 1 /
+        herkansing 2). There is no separate parent-portal path for retake
+        registration (aanmelden) or scheduled make-up moments
+        (inhaalmomenten) among the observed routes or the leerling client
+        codegen operations.
       properties:
         $type:
           type: string
@@ -2356,6 +2365,11 @@ components:
           type: number
         cijferHerkansing1:
           type: number
+        cijferHerkansing2:
+          type: number
+          description: |
+            Used by the leerling client; not present in the 2026-10-10 parent
+            sample response (x-observed live sample only had Herkansing1).
         label:
           type: string
         labelAfkorting:
@@ -2366,6 +2380,9 @@ components:
           type: boolean
         isVoldoendeHerkansing1:
           type: boolean
+        isVoldoendeHerkansing2:
+          type: boolean
+          description: Used by the leerling client; not in the live parent sample.
         periode:
           type: integer
         formattedResultaat:
@@ -2374,6 +2391,9 @@ components:
           type: string
         formattedHerkansing1:
           type: string
+        formattedHerkansing2:
+          type: string
+          description: Used by the leerling client; not in the live parent sample.
         volgnummer:
           type: integer
         type:
@@ -2390,21 +2410,42 @@ components:
         datumInvoerHerkansing1:
           type: string
           format: date-time
+        datumInvoerHerkansing2:
+          type: string
+          format: date-time
+          description: Used by the leerling client; not in the live parent sample.
         isLabel:
           type: boolean
         isCijfer:
           type: boolean
         herkansing:
           type: string
+          description: |
+            Retake policy on the column. Observed live: `EenKeerHoogste`,
+            `EenkeerGemiddeld`, `Geen`. Leerling client also: `EenKeerLaatste`,
+            `TweeKeerHoogste`, `TweeKeerLaatste`, `TweeKeerGemiddeld`.
+        herkansingsnummer:
+          type: integer
+          description: |
+            Which attempt is the geldend one (0 = first, 1/2 = herkansing).
+            Used by the leerling client; not in the live parent sample.
         toetssoort:
           type: string
         opmerkingen:
           type: string
         opmerkingenEerstePoging:
           type: string
+        opmerkingenHerkansing1:
+          type: string
+          description: Used by the leerling client; not in the live parent sample.
+        opmerkingenHerkansing2:
+          type: string
+          description: Used by the leerling client; not in the live parent sample.
         bijzonderheid:
           type: string
-          description: Seen on a report-average cell as `NietGemaakt`.
+          description: |
+            Seen on a report-average cell as `NietGemaakt`. Leerling client
+            also treats `TeltNietMee` and `Vrijstelling`. Not a make-up date.
         additionalObjects:
           type: object
           properties:

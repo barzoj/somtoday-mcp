@@ -13,6 +13,7 @@ import { gradesLatestTool } from "./tools/grades-latest.js";
 import { gradesOverviewTool } from "./tools/grades-overview.js";
 import { subjectGradesTool } from "./tools/subject-grades.js";
 import { examGradesTool } from "./tools/exam-grades.js";
+import { retakesTool } from "./tools/retakes.js";
 import { absenceTool } from "./tools/absence.js";
 import { messagesTool } from "./tools/messages.js";
 import { announcementsTool, newsTool } from "./tools/news.js";
@@ -246,7 +247,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Latest grades",
       description:
-        'Newest results first, with subject, column, description, grade, weight, test type, period, date, remarks and resit info. limit defaults to 50 (max 1000, paged). dossier=examen gives school-exam (SE) results. Also the next publication moment when the school uses one. Use this for "what grades came in recently"; use grades for a short summary with averages, subject_grades for all columns of one subject.',
+        'Newest results first, with subject, column, description, grade, weight, test type, period, date, remarks and resit info (herkansing: policy soort, attempt scores, dates). limit defaults to 50 (max 1000, paged). dossier=examen gives school-exam (SE) results. Also the next publication moment when the school uses one. Use this for "what grades came in recently"; use retakes for only columns with a retake policy or missed-test marker; use grades for a short summary with averages, subject_grades for all columns of one subject.',
       inputSchema: {
         limit: z
           .number()
@@ -265,6 +266,33 @@ export function createServer(
       },
     },
     async (args) => gradesLatestTool(ctx, args),
+  );
+
+  server.registerTool(
+    "retakes",
+    {
+      annotations: READ_ONLY,
+      title: "Retakes (herkansingen)",
+      description:
+        "Test columns that allow a retake (herkansing) and their scored attempts (first try + herkansing 1/2 with dates), plus results marked niet gemaakt (missed). Sourced from the same geldend result endpoints as grades_latest. Does not include retake registration (aanmelden) or scheduled make-up dates (inhaalmomenten): those are not exposed on the parent portal API. limit defaults to 200 (max 1000).",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(1000)
+          .optional()
+          .describe(
+            "Newest results to scan for retakes. Default 200, max 1000.",
+          ),
+        dossier: z
+          .enum(["voortgang", "examen"])
+          .optional()
+          .describe("Default voortgang."),
+        leerlingId: leerlingArg(),
+      },
+    },
+    async (args) => retakesTool(ctx, args),
   );
 
   server.registerTool(

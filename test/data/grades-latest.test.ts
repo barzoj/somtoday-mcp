@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { gradesLatestTool } from "../../src/tools/grades-latest.js";
+import { result } from "../fixtures/resultaat.js";
 import {
   accountMe,
   jsonResponse,
@@ -7,37 +8,6 @@ import {
   toolContext,
   toolJson,
 } from "../helpers.js";
-
-export function result(n: number, extra: Record<string, unknown> = {}) {
-  return {
-    $type: "resultaten.RGeldendVoortgangsdossierResultaat",
-    links: [{ id: 1000 + n, rel: "self" }],
-    additionalObjects: {
-      vaknaam: "Wiskunde",
-      resultaatkolom: "P1-T1",
-      naamalternatiefniveau: null,
-      vakuuid: "vak-uuid",
-      lichtinguuid: "lichting-uuid",
-    },
-    cijfer: 7.5,
-    formattedResultaat: "7,5",
-    formattedEerstePoging: "5,0",
-    formattedHerkansing1: "7,5",
-    herkansing: "EenKeerHoogste",
-    isCijfer: true,
-    isVoldoende: true,
-    omschrijving: `Toets ${n}`,
-    opmerkingen: "Goed",
-    periode: 1,
-    toetscode: "T1",
-    toetssoort: "SO",
-    type: "Toetskolom",
-    volgnummer: n,
-    weging: 2,
-    datumInvoerEerstePoging: "2026-10-01T10:00:00Z",
-    ...extra,
-  };
-}
 
 describe("grades_latest", () => {
   it("pages up to limit and maps every field", async () => {
@@ -94,8 +64,29 @@ describe("grades_latest", () => {
       opmerkingen: "Goed",
       herkansing: {
         soort: "EenKeerHoogste",
+        geldendPoging: 1,
         eerstePoging: "5,0",
         herkansing1: "7,5",
+        datumEerstePoging: "2026-10-01T10:00:00Z",
+        datumHerkansing1: "2026-10-15T10:00:00Z",
+        voldoendeEerstePoging: false,
+        voldoendeHerkansing1: true,
+        pogingen: [
+          {
+            poging: 0,
+            omschrijving: "Eerste poging",
+            resultaat: "5,0",
+            datum: "2026-10-01T10:00:00Z",
+            voldoende: false,
+          },
+          {
+            poging: 1,
+            omschrijving: "Herkansing",
+            resultaat: "7,5",
+            datum: "2026-10-15T10:00:00Z",
+            voldoende: true,
+          },
+        ],
       },
       volgnummer: 0,
     });
