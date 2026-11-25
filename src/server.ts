@@ -456,13 +456,14 @@ export function createServer(
       annotations: READ_ONLY,
       title: "School information",
       description:
-        "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents; the built-in pages -1 (holidays) and -2 (school contact data) work too. Use teachers for staff and children for mentors.",
+        "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents; the built-in pages -1 (holidays) and -2 (school contact data) work too. Holidays use the child-specific vakanties endpoint (pass leerlingId when more than one child is linked). Use teachers for staff and children for mentors.",
       inputSchema: {
         paginaId: paginaIdArg()
           .optional()
           .describe(
             "Information page id from the page list of a previous school_info call (-1 = holidays, -2 = school contact data).",
           ),
+        leerlingId: leerlingArg(),
       },
     },
     async (args) => schoolInfoTool(ctx, args),

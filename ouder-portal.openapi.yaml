@@ -458,8 +458,29 @@ paths:
       tags: [rooster, school]
       operationId: listVakantiesVerzorger
       x-observed: true
-      summary: Holidays and days off for the parent
-      description: Also used by Schoolinformatie pagina=-1.
+      summary: Holidays and days off for the parent (often empty)
+      description: |
+        Observed in the parent portal, but for many parent accounts this
+        returns an empty `items` list. Prefer `/vakanties/leerling/{leerlingId}`.
+      responses:
+        '200':
+          description: Holiday list (may be empty)
+          content:
+            application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+
+  /vakanties/leerling/{leerlingId}:
+    get:
+      tags: [rooster, school]
+      operationId: listVakantiesLeerling
+      x-observed: true
+      summary: Holidays and days off for one student
+      description: |
+        Used by schedule, lessons (holiday flag), and Schoolinformatie pagina=-1.
+        Items carry `naam`, `beginDatum`, `eindDatum` (local midnight with offset).
+      parameters:
+        - $ref: '#/components/parameters/leerlingId'
       responses:
         '200':
           description: Holiday list

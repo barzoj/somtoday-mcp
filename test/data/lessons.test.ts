@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { filterLessonsForDate } from "../../src/api/lessons.js";
+import { filterLessonsForDate, holidaysOnDate } from "../../src/api/lessons.js";
 import { amsterdamYmd } from "../../src/dates.js";
+import { lessonsTool } from "../../src/tools/lessons.js";
+import {
+  accountMe,
+  listResponse,
+  routedFetch,
+  toolContext,
+  toolJson,
+} from "../helpers.js";
+import { herfstvakantie2026, kerstvakantie2026 } from "../fixtures/holidays.js";
 
 describe("lesson date filter", () => {
   it("keeps an Amsterdam date and drops the next day, including a previous UTC date", () => {
@@ -38,5 +47,47 @@ describe("lesson date filter", () => {
     expect(kept[0]?.vak?.naam).toBe("SubjectA");
     expect(kept[0]?.type).toBe("ROOSTERTOETS");
     expect(kept[0]?.uitgevallen).toBe(true);
+  });
+});
+
+describe("holiday detection", () => {
+  it("recognises inclusive ranges with Somtoday offset datetimes", () => {
+    const on = holidaysOnDate(
+      [kerstvakantie2026, herfstvakantie2026],
+      "2026-12-28",
+    );
+    expect(on.map((item) => item.naam)).toEqual(["Kerstvakantie"]);
+    expect(holidaysOnDate([kerstvakantie2026], "2026-12-21")).toHaveLength(1);
+    expect(holidaysOnDate([kerstvakantie2026], "2027-01-03")).toHaveLength(1);
+    expect(holidaysOnDate([kerstvakantie2026], "2027-01-04")).toHaveLength(0);
+  });
+
+  it("sets holiday:true from /vakanties/leerling/{id}, not the empty verzorger list", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [/\/afspraakitems\/4242\/jaar\/2026\/week\/53/, () => listResponse([])],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
+      [
+        /\/vakanties\/leerling\/4242/,
+        () => listResponse([kerstvakantie2026, herfstvakantie2026]),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await lessonsTool(ctx, { date: "2026-12-28" })) as {
+      holiday: boolean;
+      holidays: string[];
+      lessons: unknown[];
+    };
+    expect(out.holiday).toBe(true);
+    expect(out.holidays).toEqual(["Kerstvakantie"]);
+    expect(out.lessons).toEqual([]);
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/4242"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) => call.url.pathname.endsWith("/vakanties/verzorger")),
+    ).toBe(false);
   });
 });

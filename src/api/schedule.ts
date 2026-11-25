@@ -128,11 +128,27 @@ function holidayBounds(holiday: RawHoliday): [string?, string?] {
   ];
 }
 
-/** Every holiday and day off the school published for the parent, as the portal's Vakanties page. */
+/**
+ * Published holidays for one child.
+ * `/vakanties/verzorger` exists but often returns an empty list for parents;
+ * the portal and other clients use `/vakanties/leerling/{id}` instead.
+ */
+export async function fetchHolidayItems(
+  client: ApiClient,
+  leerlingId: number,
+): Promise<RawHoliday[]> {
+  const { items } = await client.getAll<RawHoliday>(
+    `/vakanties/leerling/${leerlingId}`,
+  );
+  return items;
+}
+
+/** Every holiday and day off published for this child (school Vakanties page). */
 export async function fetchHolidays(
   client: ApiClient,
+  leerlingId: number,
 ): Promise<Array<{ naam?: string; van?: string; tot?: string }>> {
-  const { items } = await client.getAll<RawHoliday>("/vakanties/verzorger");
+  const items = await fetchHolidayItems(client, leerlingId);
   return items
     .map((holiday) => {
       const [van, tot] = holidayBounds(holiday);
@@ -171,8 +187,7 @@ export async function fetchSchedule(
     ),
   );
   const meldingen = realMeldingen(notes);
-  const holidays = (await client.getAll<RawHoliday>("/vakanties/verzorger"))
-    .items;
+  const holidays = await fetchHolidayItems(client, leerlingId);
   const items = weeks
     .flatMap((week) => week.items)
     .map(mapScheduleItem)

@@ -13,6 +13,7 @@ import {
   toolContext,
   toolJson,
 } from "../helpers.js";
+import { herfstvakantie2026, kerstvakantie2026 } from "../fixtures/holidays.js";
 
 const schoolgegevens = () =>
   jsonResponse(200, [
@@ -139,22 +140,13 @@ describe("school_info", () => {
 describe("school_info built-in pages", () => {
   it("opens every id from the list fixture, including -1/-2 and normal pages", async () => {
     const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
       [/\/leerlingen\/verzorger\/schoolgegevens/, schoolgegevens],
+      // Parent aggregation often returns [] live; holidays come per child.
+      [/\/vakanties\/verzorger/, () => listResponse([])],
       [
-        /\/vakanties\/verzorger/,
-        () =>
-          listResponse([
-            {
-              naam: "Kerstvakantie",
-              beginDatum: "2026-12-19",
-              eindDatum: "2027-01-03",
-            },
-            {
-              naam: "Herfstvakantie",
-              beginDatum: "2026-10-17",
-              eindDatum: "2026-10-25",
-            },
-          ]),
+        /\/vakanties\/leerling\/4242/,
+        () => listResponse([kerstvakantie2026, herfstvakantie2026]),
       ],
       [
         /\/schoolinformatie\/gepubliceerd\/v2\/paginas\/9$/,
@@ -206,7 +198,7 @@ describe("school_info built-in pages", () => {
           standaardPagina: "VAKANTIES",
           vakanties: [
             { naam: "Herfstvakantie", van: "2026-10-17", tot: "2026-10-25" },
-            { naam: "Kerstvakantie", van: "2026-12-19", tot: "2027-01-03" },
+            { naam: "Kerstvakantie", van: "2026-12-21", tot: "2027-01-03" },
           ],
         });
       } else if (paginaId === -2) {
@@ -221,6 +213,14 @@ describe("school_info built-in pages", () => {
       }
     }
 
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/4242"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) => call.url.pathname.endsWith("/vakanties/verzorger")),
+    ).toBe(false);
     expect(calls.some((call) => /paginas\/-/.test(call.url.pathname))).toBe(
       false,
     );

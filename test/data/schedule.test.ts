@@ -8,6 +8,7 @@ import {
   toolContext,
   toolJson,
 } from "../helpers.js";
+import { herfstvakantie2026, kerstvakantie2026 } from "../fixtures/holidays.js";
 
 const afspraak = (begin: string, extra: Record<string, unknown> = {}) => ({
   $type: "participatie.live.RAfspraakItem",
@@ -83,21 +84,10 @@ describe("schedule", () => {
           ),
       ],
       [/\/afspraakitems\/4242\/jaar\/2026\/week\/53/, () => listResponse([])],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
       [
-        /\/vakanties\/verzorger/,
-        () =>
-          listResponse([
-            {
-              naam: "Kerstvakantie",
-              beginDatum: "2026-12-26",
-              eindDatum: "2027-01-10",
-            },
-            {
-              naam: "Herfstvakantie",
-              beginDatum: "2026-10-17",
-              eindDatum: "2026-10-25",
-            },
-          ]),
+        /\/vakanties\/leerling\/4242/,
+        () => listResponse([kerstvakantie2026, herfstvakantie2026]),
       ],
     ]);
     const ctx = await toolContext(fetchFn);
@@ -116,7 +106,7 @@ describe("schedule", () => {
       { status: "INFO", message: "Rooster bijgewerkt" },
     ]);
     expect(out.vakanties).toEqual([
-      { naam: "Kerstvakantie", van: "2026-12-26", tot: "2027-01-10" },
+      { naam: "Kerstvakantie", van: "2026-12-21", tot: "2027-01-03" },
     ]);
     expect(out.days).toHaveLength(8);
     expect(out.days[0]!.items![0]).toMatchObject({
@@ -127,6 +117,10 @@ describe("schedule", () => {
       locatie: "B1.02",
       docenten: ["Docent A"],
       omschrijving: "Neem schrift mee",
+    });
+    expect(out.days[0]).toMatchObject({
+      datum: "2026-12-21",
+      vakantie: "Kerstvakantie",
     });
     expect(out.days[1]!.items![0]).toMatchObject({
       lesuur: "3-4",
@@ -145,10 +139,19 @@ describe("schedule", () => {
       vakantie: "Kerstvakantie",
       items: [],
     });
-    expect(out.days[3]).toEqual({ datum: "2026-12-24", items: [] });
+    expect(out.days[3]).toEqual({
+      datum: "2026-12-24",
+      vakantie: "Kerstvakantie",
+      items: [],
+    });
     expect(
       calls.filter((call) => call.url.pathname.includes("afspraakitems")),
     ).toHaveLength(2);
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/4242"),
+      ),
+    ).toBe(true);
   });
 
   it("respects roosterBekijkenAan", async () => {
