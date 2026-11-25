@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { scheduleTool } from "../../src/tools/schedule.js";
 import {
   accountMe,
+  accountMeChildren,
   jsonResponse,
   listResponse,
   routedFetch,
@@ -161,5 +162,55 @@ describe("schedule", () => {
     const ctx = await toolContext(fetchFn);
     expect(toolJson(await scheduleTool(ctx, {})).available).toBe(false);
     expect(calls).toHaveLength(1);
+  });
+
+  it("keeps the timetable when holidays 403 and returns empty vakanties", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [/\/afspraakitems\/4242\/jaar\/2026\/week\/52/, () => listResponse([])],
+      [
+        /\/vakanties\/leerling\/4242/,
+        () => jsonResponse(403, { message: "forbidden" }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await scheduleTool(ctx, { from: "2026-12-21", to: "2026-12-21" }),
+    ) as {
+      vakanties: unknown[];
+      days: Array<{ datum: string; vakantie?: string; items: unknown[] }>;
+    };
+    expect(out.vakanties).toEqual([]);
+    expect(out.days).toEqual([{ datum: "2026-12-21", items: [] }]);
+  });
+
+  it("fetches holidays for the requested child when several are linked", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMeChildren([4242, 5252])],
+      [/\/afspraakitems\/5252\/jaar\/2026\/week\/52/, () => listResponse([])],
+      [/\/vakanties\/leerling\/5252/, () => listResponse([kerstvakantie2026])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await scheduleTool(ctx, {
+        from: "2026-12-21",
+        to: "2026-12-21",
+        leerlingId: "5252",
+      }),
+    ) as {
+      leerlingId: number;
+      vakanties: Array<{ naam?: string }>;
+      days: Array<{ vakantie?: string }>;
+    };
+    expect(out.leerlingId).toBe(5252);
+    expect(out.vakanties).toEqual([
+      { naam: "Kerstvakantie", van: "2026-12-21", tot: "2027-01-03" },
+    ]);
+    expect(out.days[0]?.vakantie).toBe("Kerstvakantie");
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/5252"),
+      ),
+    ).toBe(true);
   });
 });

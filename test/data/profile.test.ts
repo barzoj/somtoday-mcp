@@ -7,6 +7,7 @@ import {
 } from "../../src/tools/profile.js";
 import {
   accountMe,
+  accountMeChildren,
   jsonResponse,
   listResponse,
   routedFetch,
@@ -224,6 +225,62 @@ describe("school_info built-in pages", () => {
     expect(calls.some((call) => /paginas\/-/.test(call.url.pathname))).toBe(
       false,
     );
+  });
+
+  it("requires leerlingId for page -1 when several children are linked", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMeChildren([4242, 5252])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const result = await schoolInfoTool(ctx, { paginaId: -1 });
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+      error: "Multiple linked students; pass leerlingId",
+      children: [{ leerlingId: 4242 }, { leerlingId: 5252 }],
+    });
+    expect(
+      calls.some((call) => call.url.pathname.includes("/vakanties/")),
+    ).toBe(false);
+  });
+
+  it("loads holidays for the requested child when several are linked", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMeChildren([4242, 5252])],
+      [/\/vakanties\/leerling\/5252/, () => listResponse([kerstvakantie2026])],
+      [/\/vakanties\/leerling\/4242/, () => listResponse([herfstvakantie2026])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await schoolInfoTool(ctx, { paginaId: -1, leerlingId: "5252" }),
+    ) as { pagina: { vakanties: Array<{ naam?: string }> } };
+    expect(out.pagina.vakanties.map((item) => item.naam)).toEqual([
+      "Kerstvakantie",
+    ]);
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/5252"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/4242"),
+      ),
+    ).toBe(false);
+  });
+
+  it("returns empty vakanties when the leerling holidays endpoint is unavailable", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        () => jsonResponse(403, { message: "forbidden" }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: { vakanties: unknown[] };
+    };
+    expect(out.pagina.vakanties).toEqual([]);
   });
 });
 
