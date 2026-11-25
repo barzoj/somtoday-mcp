@@ -190,7 +190,10 @@ export function homeworkItemKey(item: {
   soort?: string;
   toekenningId?: number;
 }): string {
-  return `${item.soort ?? ""}:${item.toekenningId ?? ""}`;
+  if (item.toekenningId == null) {
+    return `anon:${item.soort ?? "unknown"}`;
+  }
+  return `${item.soort ?? "unknown"}:${item.toekenningId}`;
 }
 
 /**
@@ -252,10 +255,7 @@ export async function fetchHomeworkRange(
     .flatMap((entry) => entry.dated)
     .map(map)
     .filter((item) => {
-      const key =
-        item.toekenningId != null
-          ? homeworkItemKey(item)
-          : `anon:${JSON.stringify(item)}`;
+      const key = homeworkItemKey(item);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

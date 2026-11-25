@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { homeworkItemKey } from "../../src/api/homework.js";
 import { homeworkTool } from "../../src/tools/homework.js";
 import {
   accountMe,
@@ -58,6 +59,15 @@ function server() {
     [/studiewijzeritemweektoekenningen/, () => listResponse([])],
   ]);
 }
+
+describe("homeworkItemKey", () => {
+  it("keys by soort and toekenningId, with fallbacks when either is missing", () => {
+    expect(homeworkItemKey({ soort: "dag", toekenningId: 7 })).toBe("dag:7");
+    expect(homeworkItemKey({ toekenningId: 7 })).toBe("unknown:7");
+    expect(homeworkItemKey({ soort: "les" })).toBe("anon:les");
+    expect(homeworkItemKey({})).toBe("anon:unknown");
+  });
+});
 
 describe("homework (date range)", () => {
   it("groups every item by day with all fields, plus week items and deadlines", async () => {
