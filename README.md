@@ -41,7 +41,7 @@ It runs locally on your computer over stdio. Nothing is sent anywhere except to 
 | `signing_document`    | The (signed) PDF of one signing request, as the portal's download button: pass `document.id`; returns extracted text, max 10 MB. Fetched with your login token, so it is not a `fileUrl` for `download_attachment`.                                                                                                                                                                 |
 | `parent_evening`      | Parent-evening details (slots, teachers); finds invitations in your messages (read-only; nothing is booked).                                                                                                                                                                                                                                                                        |
 | `consents`            | Consents such as use of photos, as set in the portal (read-only).                                                                                                                                                                                                                                                                                                                   |
-| `download_attachment` | Save an attachment to disk and read it: pass its `fileUrl` (as `url`) or its `bestanddataId`. Returns `savedPath`, type, size and the text of PDF, Word (.docx), text, HTML, CSV and JSON files (`extractText=false` to skip, `save=false` to not save). Max 10 MB. See [Attachments](#attachments).                                                                                |
+| `download_attachment` | Save an attachment to disk: pass its `fileUrl` (as `url`) or its `bestanddataId`. Returns `savedPath`, type, size and fileName (`save=false` to skip writing). Max 10 MB. No text extraction. See [Attachments](#attachments).                                                                                                                                                      |
 | `auth_status`         | Whether a session is stored, where, and how the last token renewal went. Never returns tokens.                                                                                                                                                                                                                                                                                      |
 
 - `lessons` takes an optional `date` (`YYYY-MM-DD`, Europe/Amsterdam) and defaults to **tomorrow**. Range tools take `date`, or `from`/`to`.
@@ -59,7 +59,7 @@ Every tool that shows files (homework, assignments, schedule, study material, me
 - `fileUrl`: a direct link. `download_attachment` fetches it only from https Somtoday hosts (`*.somtoday.nl`, extend with `SOMTODAY_MCP_ATTACHMENT_HOSTS`), without sending your login token.
 - `bestanddataId`: newer study-planner files have no direct link. `download_attachment` then asks Somtoday for a short-lived signed link with your session (`GET /gcs/download/{bestanddataId}`, as the portal's open button does) and fetches that link without the token.
 
-Files are saved to `SOMTODAY_MCP_DOWNLOAD_DIR`, or `~/Downloads/somtoday-mcp` when it is not set. File names are cleaned (no folders or special characters), existing files are never overwritten (`name (1).pdf`), and the folder and files are only readable by you. Pass `fileName` to name a file when the server sends no name.
+Files are saved to `SOMTODAY_MCP_DOWNLOAD_DIR`, or `~/Downloads/somtoday-mcp` when it is not set. File names are cleaned (no folders or special characters), existing files are never overwritten (`name (1).pdf`), and the folder and files are only readable by you. Pass `fileName` to name a file when the server sends no name. `download_attachment` does not extract text (path and metadata only).
 
 Not available through the parent API: registering for retakes (herkansingen) and make-up dates (inhalen) for missed tests. The portal has no such screen or endpoint for parents; retake grades already show up in `grades_latest` and `subject_grades`.
 
@@ -75,7 +75,7 @@ Timetables, homework, and grades are personal data about children. Keep the outp
 
 ## Install
 
-Requires Node.js 24 or newer (the PDF text extraction used by `download_attachment` and `signing_document` depends on unpdf 2, which requires Node 24).
+Requires Node.js 24 or newer (the PDF text extraction used by `signing_document` depends on unpdf 2, which requires Node 24).
 
 Published on npm as [`somtoday-mcp`](https://www.npmjs.com/package/somtoday-mcp), with [provenance](https://docs.npmjs.com/generating-provenance-statements) from this repository's release workflow.
 

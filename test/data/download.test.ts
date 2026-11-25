@@ -37,7 +37,7 @@ describe("attachment allow-list", () => {
 });
 
 describe("downloadAttachment", () => {
-  it("extracts PDF text without sending a token", async () => {
+  it("downloads without sending a token and without extracting text", async () => {
     const { fetchFn, calls } = fakeFetch({
       [FILE]: () =>
         new Response(minimalPdf("Opdracht 1 maken"), {
@@ -49,9 +49,9 @@ describe("downloadAttachment", () => {
       host: "files.somtoday.nl",
       contentType: "application/pdf",
       fileName: "werkblad.pdf",
-      pages: 1,
     });
-    expect(out.text).toContain("Opdracht 1 maken");
+    expect(out.text).toBeUndefined();
+    expect(out.pages).toBeUndefined();
     expect(calls[0]?.init?.method).toBe("GET");
     expect(
       new Headers(calls[0]?.init?.headers).get("authorization"),
@@ -59,7 +59,7 @@ describe("downloadAttachment", () => {
     expect(calls[0]?.init?.redirect).toBe("manual");
   });
 
-  it("converts HTML and keeps CSV/text", async () => {
+  it("returns HTML/CSV/text as metadata only (no decoded body)", async () => {
     const { fetchFn } = fakeFetch({
       [FILE]: () =>
         new Response("<p>Hallo <b>wereld</b></p>", {
@@ -68,16 +68,16 @@ describe("downloadAttachment", () => {
       "https://files.somtoday.nl/a.csv": () =>
         new Response("a;b\n1;2", { headers: { "content-type": "text/csv" } }),
     });
-    expect((await downloadAttachment(fetchFn, FILE, { env: "" })).text).toBe(
-      "Hallo wereld",
-    );
+    expect(
+      (await downloadAttachment(fetchFn, FILE, { env: "" })).text,
+    ).toBeUndefined();
     expect(
       (
         await downloadAttachment(fetchFn, "https://files.somtoday.nl/a.csv", {
           env: "",
         })
       ).text,
-    ).toBe("a;b\n1;2");
+    ).toBeUndefined();
   });
 
   it("follows redirects only to allowed hosts", async () => {
@@ -130,7 +130,6 @@ describe("downloadAttachment", () => {
       contentType: "image/png",
       fileName: "foto.png",
       bytes: 3,
-      note: expect.stringMatching(/binary/),
     });
   });
 });

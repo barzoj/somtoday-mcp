@@ -105,7 +105,7 @@ type RawProjectgroep = {
 
 /**
  * Attachment as returned by every tool. Pass `fileUrl` or `bestanddataId` to
- * `download_attachment` to save and read it.
+ * `download_attachment` to save the file.
  */
 export type AttachmentView = {
   id?: number;
@@ -158,38 +158,59 @@ export type StudiewijzerItemView = {
 
 /** Same file types the portal shows; previews and thumbnails are skipped. */
 const FILE_TYPES = ["IMAGE", "VIDEO", "DOCUMENT", "MISC", "AUDIO"];
+const SKIP_ASSEMBLY_TYPES = new Set(["THUMBNAIL", "PREVIEW"]);
 
-export function mapAttachment(bijlage: RawBijlage): AttachmentView | undefined {
-  const id = linkId(bijlage);
-  const bestand = bijlage.bestand;
-  // Same order as the portal: a file record wins over assemblyResults.
-  if (
-    bestand &&
-    (bestand.bestandsnaam || bestand.publicUrl || bestand.bestanddataId)
-  ) {
-    const fileName = bestand.bestandsnaam;
-    const extension = fileName?.includes(".")
-      ? fileName.split(".").pop()?.toLowerCase()
-      : undefined;
-    return {
-      id,
-      naam: bijlage.omschrijving?.trim() || fileName || "-",
-      fileName,
-      fileUrl: bestand.publicUrl || undefined,
-      fileSize: bestand.bestandsgrootte,
-      fileExtension: extension,
-      bestanddataId: bestand.bestanddataId || undefined,
-    };
+function extensionOf(fileName: string | undefined): string | undefined {
+  return fileName?.includes(".")
+    ? fileName.split(".").pop()?.toLowerCase()
+    : undefined;
+}
+
+function displayName(...parts: Array<string | undefined>): string | undefined {
+  for (const part of parts) {
+    const trimmed = part?.trim();
+    if (trimmed) return trimmed;
   }
+  return undefined;
+}
+
+function fromBestand(
+  bijlage: RawBijlage,
+  id: number | undefined,
+): AttachmentView | undefined {
+  const bestand = bijlage.bestand;
+  // Prefer the file record when it carries a download key (portal order).
+  // Name-only bestand records fall through so assemblyResults can still supply
+  // fileUrl/sslUrl.
+  if (!bestand?.publicUrl && !bestand?.bestanddataId) return undefined;
+  const fileName = bestand.bestandsnaam;
+  return {
+    id,
+    naam: displayName(bijlage.omschrijving, fileName) ?? "-",
+    fileName,
+    fileUrl: bestand.publicUrl || undefined,
+    fileSize: bestand.bestandsgrootte,
+    fileExtension: extensionOf(fileName),
+    bestanddataId: bestand.bestanddataId || undefined,
+  };
+}
+
+function fromAssembly(
+  bijlage: RawBijlage,
+  id: number | undefined,
+): AttachmentView | undefined {
   const assembly =
     bijlage.assemblyResults?.find((result) =>
       FILE_TYPES.includes(result.assemblyFileType ?? ""),
-    ) ?? bijlage.assemblyResults?.[0];
+    ) ??
+    // Untyped/unknown results may still carry the real download URL; never
+    // fall back to PREVIEW/THUMBNAIL (those are portal UI assets only).
+    bijlage.assemblyResults?.find(
+      (result) => !SKIP_ASSEMBLY_TYPES.has(result.assemblyFileType ?? ""),
+    );
   const fileUrl = assembly?.fileUrl || assembly?.sslUrl || undefined;
-  const naam = bijlage.omschrijving ?? assembly?.fileName;
-  if (!naam && !fileUrl) {
-    return undefined;
-  }
+  const naam = displayName(bijlage.omschrijving, assembly?.fileName);
+  if (!naam && !fileUrl) return undefined;
   return {
     id,
     naam: naam ?? "-",
@@ -199,6 +220,31 @@ export function mapAttachment(bijlage: RawBijlage): AttachmentView | undefined {
     fileExtension: assembly?.fileExtension,
     type: assembly?.assemblyFileType,
   };
+}
+
+function fromNameOnly(
+  bijlage: RawBijlage,
+  id: number | undefined,
+): AttachmentView | undefined {
+  const fileName = bijlage.bestand?.bestandsnaam;
+  const naam = displayName(bijlage.omschrijving, fileName);
+  if (!naam) return undefined;
+  return {
+    id,
+    naam,
+    fileName,
+    fileSize: bijlage.bestand?.bestandsgrootte,
+    fileExtension: extensionOf(fileName),
+  };
+}
+
+export function mapAttachment(bijlage: RawBijlage): AttachmentView | undefined {
+  const id = linkId(bijlage);
+  return (
+    fromBestand(bijlage, id) ??
+    fromAssembly(bijlage, id) ??
+    fromNameOnly(bijlage, id)
+  );
 }
 
 export function mapLink(materiaal: RawExternMateriaal): LinkView | undefined {

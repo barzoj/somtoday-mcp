@@ -2773,10 +2773,37 @@ components:
         bestandsgrootte:
           type: integer
           format: int64
+        publicUrl:
+          type: string
+          format: uri
+          description: Direct HTTPS link when Somtoday exposes one on the file record.
         links:
           type: array
           items:
             $ref: '#/components/schemas/Link'
+
+    AssemblyResult:
+      type: object
+      x-observed: true
+      description: Legacy attachment payload (CDN fileUrl/sslUrl). Thumbnails/previews are skipped by clients.
+      properties:
+        assemblyFileType:
+          type: string
+        fileName:
+          type: string
+        fileUrl:
+          type: string
+          format: uri
+        sslUrl:
+          type: string
+          format: uri
+        fileSize:
+          type: integer
+          format: int64
+        fileExtension:
+          type: string
+        contentType:
+          type: string
 
     StudiewijzerBijlage:
       type: object
@@ -2789,8 +2816,16 @@ components:
           format: int64
         zichtbaarVoorLeerling:
           type: boolean
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
         bestand:
           $ref: '#/components/schemas/StudiewijzerBestand'
+        assemblyResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssemblyResult'
 
     ExternMateriaal:
       type: object

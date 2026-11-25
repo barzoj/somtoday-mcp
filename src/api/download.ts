@@ -132,15 +132,18 @@ async function extractPdf(
 }
 
 /**
- * Download an attachment from an allow-listed host (GET only, no Authorization header,
- * every redirect re-checked) and extract text where possible.
+ * Download an attachment from an allow-listed host (GET only, no Authorization
+ * header, every redirect re-checked). Saves a copy when `saveDir` is set;
+ * returns path and metadata only (no text extraction).
  */
-export type DownloadOptions = ReadOptions & {
+export type DownloadOptions = {
   maxBytes?: number;
   env?: string;
   /** Hosts trusted for this one call (the host of a signed link from the API). */
   extraHosts?: string[];
   fallbackName?: string;
+  /** Save a copy in this directory and report `savedPath`. */
+  saveDir?: string;
 };
 
 export async function downloadAttachment(
@@ -177,7 +180,7 @@ export async function downloadAttachment(
     }
     return readFile(response, url, options.maxBytes, options.fallbackName, {
       saveDir: options.saveDir,
-      extractText: options.extractText,
+      extractText: false,
     });
   }
 }
@@ -245,22 +248,14 @@ async function saveFile(
 export type ReadOptions = {
   /** Save a copy in this directory and report `savedPath`. */
   saveDir?: string;
-  /** Extract text (PDF, Word .docx, text/HTML/CSV/JSON). Default true. */
+  /**
+   * Extract text (PDF and text/HTML/CSV/JSON). Used by `signing_document`.
+   * `download_attachment` always passes false.
+   */
   extractText?: boolean;
 };
 
-const DOCX_TYPE =
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-async function extractDocx(bytes: Uint8Array): Promise<string> {
-  const mammoth = await import("mammoth");
-  const { value } = await mammoth.extractRawText({
-    buffer: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
-  });
-  return value.replace(/\n{3,}/g, "\n\n").trim();
-}
-
-/** Read a successful response (size-capped), optionally save it, and extract text where possible. */
+/** Read a successful response (size-capped), optionally save it, and extract text when asked. */
 export async function readFile(
   response: Response,
   url: URL,
@@ -293,22 +288,6 @@ export async function readFile(
     );
   }
   if (options.extractText === false) return base;
-  const isDocx =
-    contentType === DOCX_TYPE ||
-    (/^application\/(octet-stream|zip|x-zip-compressed)$/.test(contentType) &&
-      /\.docx$/i.test(fileName ?? ""));
-  if (isDocx) {
-    try {
-      const text = await extractDocx(bytes);
-      return {
-        ...base,
-        ...truncate(text),
-        note: text ? undefined : "document has no text",
-      };
-    } catch {
-      return { ...base, note: "could not read Word document text" };
-    }
-  }
   const isPdf =
     contentType === "application/pdf" ||
     (contentType === "application/octet-stream" &&
