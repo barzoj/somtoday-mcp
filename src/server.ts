@@ -16,6 +16,7 @@ import { examGradesTool } from "./tools/exam-grades.js";
 import { absenceTool } from "./tools/absence.js";
 import { messagesTool } from "./tools/messages.js";
 import { announcementsTool, newsTool } from "./tools/news.js";
+import { STANDARD_PAGES } from "./api/profile.js";
 import { childrenTool, schoolInfoTool, teachersTool } from "./tools/profile.js";
 import {
   consentsTool,
@@ -52,6 +53,31 @@ const numericId = () =>
   z
     .union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)])
     .transform(String);
+
+/**
+ * school_info list pages include the portal's built-in ids (-1 holidays, -2
+ * school contact data). Those are not nonnegative, so they cannot use
+ * numericId(); keep the allowed negatives in sync with STANDARD_PAGES
+ * (membership, not only a min range — so gaps stay rejected).
+ */
+const paginaIdArg = () => {
+  const builtin = Object.keys(STANDARD_PAGES).map(Number);
+  const builtinIds = new Set(builtin);
+  const minBuiltin = Math.min(0, ...builtin);
+  const builtinPattern = builtin.map(String).join("|");
+  return z
+    .union([
+      z
+        .number()
+        .int()
+        .min(minBuiltin)
+        .refine((n) => n >= 0 || builtinIds.has(n), {
+          message: "Unknown built-in paginaId",
+        }),
+      z.string().regex(new RegExp(`^(?:${builtinPattern}|\\d+)$`)),
+    ])
+    .transform(Number);
+};
 
 /** Free-text or numeric reference (subject name/abbreviation/uuid, page slug). */
 const textOrNumber = () => z.union([z.string(), z.number()]).transform(String);
@@ -404,9 +430,7 @@ export function createServer(
       description:
         "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents; the built-in pages -1 (holidays) and -2 (school contact data) work too. Use teachers for staff and children for mentors.",
       inputSchema: {
-        paginaId: z
-          .union([z.number().int().min(-2), z.string().regex(/^(-[12]|\d+)$/)])
-          .transform(Number)
+        paginaId: paginaIdArg()
           .optional()
           .describe(
             "Information page id from the page list of a previous school_info call (-1 = holidays, -2 = school contact data).",
