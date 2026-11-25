@@ -213,6 +213,101 @@ describe("homework (date range)", () => {
     expect(maxInFlight).toBeLessThanOrEqual(6 * 3);
   });
 
+  it("merges a 120-day range across week windows: all items, no duplicates, sorted by date", async () => {
+    // 2026-01-05 (Mon, ISO 2026~2) .. 2026-05-04 (Mon, ISO 2026~19) = 120 days.
+    // Boundary items on the first and last day; the same toekenning is also
+    // returned from an adjacent week so the merge must dedupe by id.
+    const firstDay = "2026-01-05";
+    const lastDay = "2026-05-04";
+    const midDay = "2026-03-04"; // Wednesday of ISO week 10
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/heeftInleverperiode=true/, () => listResponse([])],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E2/,
+        () =>
+          listResponse([
+            toekenning("Dag", 101, {
+              datumTijd: "2026-01-05T08:00:00Z",
+            }),
+            // Same id also appears in week 3 below — must appear once.
+            toekenning("Dag", 102, {
+              datumTijd: "2026-01-05T10:00:00Z",
+            }),
+          ]),
+      ],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E3/,
+        () =>
+          listResponse([
+            toekenning("Dag", 102, {
+              datumTijd: "2026-01-05T10:00:00Z",
+            }),
+          ]),
+      ],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E10/,
+        () =>
+          listResponse([
+            toekenning("Dag", 110, {
+              datumTijd: "2026-03-04T09:00:00Z",
+            }),
+          ]),
+      ],
+      [
+        /studiewijzeritemdagtoekenningen.*jaarWeek=2026%7E19/,
+        () =>
+          listResponse([
+            toekenning("Dag", 119, {
+              datumTijd: "2026-05-04T08:00:00Z",
+            }),
+          ]),
+      ],
+      [/studiewijzeritemdagtoekenningen/, () => listResponse([])],
+      [/studiewijzeritemafspraaktoekenningen/, () => listResponse([])],
+      [/studiewijzeritemweektoekenningen/, () => listResponse([])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await homeworkTool(ctx, { from: firstDay, to: lastDay }),
+    ) as {
+      from: string;
+      to: string;
+      days: Array<{
+        datum: string;
+        items: Array<{ toekenningId?: number; datum?: string }>;
+      }>;
+    };
+
+    expect(out.from).toBe(firstDay);
+    expect(out.to).toBe(lastDay);
+    expect(out.days).toHaveLength(120);
+    expect(out.days.map((day) => day.datum)).toEqual(
+      out.days.map((day) => day.datum).toSorted(),
+    );
+    expect(out.days[0]!.datum).toBe(firstDay);
+    expect(out.days[119]!.datum).toBe(lastDay);
+
+    const allItems = out.days.flatMap((day) => day.items);
+    expect(allItems.map((item) => item.toekenningId).toSorted()).toEqual([
+      101, 102, 110, 119,
+    ]);
+    expect(out.days[0]!.items.map((item) => item.toekenningId)).toEqual([
+      101, 102,
+    ]);
+    const mid = out.days.find((day) => day.datum === midDay);
+    expect(mid!.items.map((item) => item.toekenningId)).toEqual([110]);
+    expect(out.days[119]!.items.map((item) => item.toekenningId)).toEqual([
+      119,
+    ]);
+
+    // Every ISO week in the span was queried (18 weeks × 3 list endpoints).
+    const weekCalls = calls.filter((call) =>
+      /jaarWeek=|weeknummer=/.test(call.url.search),
+    );
+    expect(weekCalls).toHaveLength(18 * 3);
+  });
+
   it("refuses ranges over 350 days", async () => {
     const { fetchFn } = routedFetch([
       [/\/account\/me/, () => accountMe(LEERLING)],
