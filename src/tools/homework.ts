@@ -5,7 +5,12 @@ import type { ToolContext } from "./context.js";
 import type { ToolResult } from "./result.js";
 
 export const HOMEWORK_DEFAULT_DAYS = 7;
-export const HOMEWORK_MAX_DAYS = 42;
+/**
+ * Somtoday has no range limit here: the planner is read per ISO week, in
+ * batches. 350 days (50 weeks) covers a school year and never touches the same
+ * week number in two years (the week-item call has no year).
+ */
+export const HOMEWORK_MAX_DAYS = 350;
 
 export async function homeworkTool(
   ctx: ToolContext,

@@ -28,6 +28,9 @@ describe("id-like inputs", () => {
     ["subject_grades", { vak: "wi" }],
     ["messages", { conversatieId: 9 }],
     ["school_info", { paginaId: "9" }],
+    ["school_info", { paginaId: -1 }],
+    ["school_info", { paginaId: "-2" }],
+    ["download_attachment", { bestanddataId: "abc-123" }],
     ["parent_evening", { id: 12 }],
   ])("%s accepts %j", async (name, args) => {
     const client = await connect();
@@ -40,6 +43,9 @@ describe("id-like inputs", () => {
     ["assignment_detail", { toekenningId: "12a" }],
     ["assignment_detail", { toekenningId: -1 }],
     ["homework", { leerlingId: 1.5 }],
+    ["school_info", { paginaId: -3 }],
+    ["school_info", { paginaId: "-7" }],
+    ["download_attachment", { bestanddataId: "../etc" }],
   ])("%s rejects %j", async (name, args) => {
     const client = await connect();
     const result = await client.callTool({ name, arguments: args });

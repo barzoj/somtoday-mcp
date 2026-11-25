@@ -128,6 +128,19 @@ function holidayBounds(holiday: RawHoliday): [string?, string?] {
   ];
 }
 
+/** Every holiday and day off the school published for the parent, as the portal's Vakanties page. */
+export async function fetchHolidays(
+  client: ApiClient,
+): Promise<Array<{ naam?: string; van?: string; tot?: string }>> {
+  const { items } = await client.getAll<RawHoliday>("/vakanties/verzorger");
+  return items
+    .map((holiday) => {
+      const [van, tot] = holidayBounds(holiday);
+      return compact({ naam: holiday.naam, van, tot });
+    })
+    .sort((a, b) => (a.van ?? "").localeCompare(b.van ?? ""));
+}
+
 export async function fetchSchedule(
   client: ApiClient,
   leerlingId: number,

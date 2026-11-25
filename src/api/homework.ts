@@ -169,6 +169,22 @@ export type HomeworkRange = {
   weken: Array<{ jaar: number; week: number; items: StudiewijzerItemView[] }>;
 };
 
+/** ISO weeks fetched at the same time (3 list calls each), so long ranges stay polite. */
+export const HOMEWORK_WEEKS_PER_BATCH = 6;
+
+/** `Promise.all` over `items`, at most `size` at a time, results in input order. */
+export async function mapInBatches<T, R>(
+  items: T[],
+  size: number,
+  run: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = [];
+  for (let start = 0; start < items.length; start += size) {
+    out.push(...(await Promise.all(items.slice(start, start + size).map(run))));
+  }
+  return out;
+}
+
 /**
  * Everything in the study planner for a date range, the way the portal loads
  * it: per ISO week the lesson and day items (`jaarWeek`) and the week items
@@ -181,8 +197,10 @@ export async function fetchHomeworkRange(
   to: string,
 ): Promise<HomeworkRange> {
   const weeks = isoWeeksInRange(from, to);
-  const perWeek = await Promise.all(
-    weeks.map(async ({ year, week }) => {
+  const perWeek = await mapInBatches(
+    weeks,
+    HOMEWORK_WEEKS_PER_BATCH,
+    async ({ year, week }) => {
       const jaarWeekQuery = homeworkQuery(leerlingId);
       jaarWeekQuery.set("jaarWeek", `${year}~${week}`);
       const weekQuery = homeworkQuery(leerlingId);
@@ -211,7 +229,7 @@ export async function fetchHomeworkRange(
             week <= (item.weeknummerTm ?? week),
         ),
       };
-    }),
+    },
   );
   const handIns = await client.getAll<RawToekenning>(
     "/studiewijzeritemdagtoekenningen",

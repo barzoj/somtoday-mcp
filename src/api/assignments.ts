@@ -21,17 +21,25 @@ export type AssignmentCategory =
 export type AssignmentView = StudiewijzerItemView & {
   categorie?: AssignmentCategory;
   teLaat?: boolean;
+  /** Deadline passed, but Somtoday expects no digital hand-in (paper/in class): not late. */
+  geenDigitaleInlevering?: boolean;
 };
 
 /**
  * Same buckets as the portal's assignment list. `teLaat` is always a boolean
  * once an item has a window: true only for an open hand-in (IN_TE_LEVEREN)
- * whose deadline has passed.
+ * whose deadline has passed and that expects a digital hand-in. A past item
+ * with `inleveringenVerwacht: 0` (handed in on paper or in class) is not late;
+ * it gets `geenDigitaleInlevering: true` instead.
  */
 export function categorize(
   item: StudiewijzerItemView,
   now: Date,
-): { categorie?: AssignmentCategory; teLaat?: boolean } {
+): {
+  categorie?: AssignmentCategory;
+  teLaat?: boolean;
+  geenDigitaleInlevering?: boolean;
+} {
   const start = item.inlevermoment?.start
     ? new Date(item.inlevermoment.start)
     : undefined;
@@ -42,10 +50,15 @@ export function categorize(
   if (start > now) return { categorie: "AANKOMEND", teLaat: false };
   const status = item.inleverStatus;
   if (!status || status === "HEROPEND") {
-    return {
-      categorie: "IN_TE_LEVEREN",
-      teLaat: eind ? eind < now : false,
-    };
+    const verlopen = eind ? eind < now : false;
+    if (verlopen && item.inlevermoment?.inleveringenVerwacht === 0) {
+      return {
+        categorie: "IN_TE_LEVEREN",
+        teLaat: false,
+        geenDigitaleInlevering: true,
+      };
+    }
+    return { categorie: "IN_TE_LEVEREN", teLaat: verlopen };
   }
   if (status === "TE_BEOORDELEN" || status === "IN_BEHANDELING") {
     return { categorie: "IN_AFWACHTING", teLaat: false };
@@ -57,13 +70,11 @@ export function categorize(
 /**
  * A past-due open item where Somtoday expects no digital hand-in
  * (`inleveringenVerwacht: 0`, e.g. handed in on paper or in class). It stays
- * IN_TE_LEVEREN with teLaat forever, so `status=open` hides it by default.
+ * IN_TE_LEVEREN forever (never late), so `status=open` hides it by default.
  */
 export function isPastWithoutHandIn(item: AssignmentView): boolean {
   return (
-    item.categorie === "IN_TE_LEVEREN" &&
-    item.teLaat === true &&
-    item.inlevermoment?.inleveringenVerwacht === 0
+    item.categorie === "IN_TE_LEVEREN" && item.geenDigitaleInlevering === true
   );
 }
 

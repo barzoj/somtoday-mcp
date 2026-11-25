@@ -192,6 +192,13 @@ for (const tool of ordered) {
   }
   if (tool.name === "download_attachment") {
     await searchAttachments();
+    // Files without a fileUrl: signed link via bestanddataId (not saved to disk).
+    if (found.has("bestanddataId")) {
+      await call("download_attachment", {
+        bestanddataId: found.get("bestanddataId"),
+        save: false,
+      });
+    }
   }
   const derived = DERIVED[tool.name];
   if (derived?.key && derived.arg in props) {

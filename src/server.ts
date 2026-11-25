@@ -125,7 +125,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Homework / study planner",
       description:
-        "What to do and learn on which day: every studiewijzer item (lesson, day and week items) for a date range, grouped by day, with description, learning goals, time estimate, test type, teacher note, attachments (file links), external links, hand-in window and status, and the done tick. Also lists hand-in deadlines per day. Defaults to today plus 6 days; at most 42 days." +
+        "What to do and learn on which day: every studiewijzer item (lesson, day and week items) for a date range, grouped by day, with description, learning goals, time estimate, test type, teacher note, attachments (file links), external links, hand-in window and status, and the done tick. Also lists hand-in deadlines per day. Defaults to today plus 6 days; at most 350 days (a school year; long ranges are fetched week by week)." +
         " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         ...rangeArgs("Defaults to today."),
@@ -402,13 +402,14 @@ export function createServer(
       annotations: READ_ONLY,
       title: "School information",
       description:
-        "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents. Use teachers for staff and children for mentors.",
+        "School contact data per child and the school's published information pages. Pass paginaId for one page with its topics and documents; the built-in pages -1 (holidays) and -2 (school contact data) work too. Use teachers for staff and children for mentors.",
       inputSchema: {
-        paginaId: numericId()
+        paginaId: z
+          .union([z.number().int().min(-2), z.string().regex(/^(-[12]|\d+)$/)])
           .transform(Number)
           .optional()
           .describe(
-            "Information page id from the page list of a previous school_info call.",
+            "Information page id from the page list of a previous school_info call (-1 = holidays, -2 = school contact data).",
           ),
       },
     },
@@ -492,12 +493,37 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Download attachment",
       description:
-        "Read an attachment (fileUrl from homework, assignments, study material or messages). Only https Somtoday file hosts; max 10 MB; returns extracted text for PDF/text/HTML/CSV/JSON, metadata otherwise.",
+        "Save an attachment (from homework, assignments, schedule, study material or messages) to the download folder and read its text. Pass the attachment's fileUrl as url, or its bestanddataId (files without a fileUrl; a signed link is requested from Somtoday with your session). Returns savedPath (folder: SOMTODAY_MCP_DOWNLOAD_DIR, default ~/Downloads/somtoday-mcp), size, type and extracted text for PDF, Word (.docx), text, HTML, CSV and JSON. Max 10 MB; fileUrl only from https Somtoday hosts (extend with SOMTODAY_MCP_ATTACHMENT_HOSTS); no token is sent to file hosts.",
       inputSchema: {
         url: z
           .url()
+          .optional()
           .describe(
-            "fileUrl of an attachment from homework, assignments, study_material or messages.",
+            "fileUrl of an attachment from homework, assignments, schedule, study_material or messages.",
+          ),
+        bestanddataId: z
+          .string()
+          .regex(/^[A-Za-z0-9._~-]{1,200}$/)
+          .optional()
+          .describe(
+            "bestanddataId of an attachment (used when it has no fileUrl, or the fileUrl host is not allowed).",
+          ),
+        fileName: z
+          .string()
+          .max(255)
+          .optional()
+          .describe(
+            "Name for the saved file when the server sends none (e.g. the attachment's fileName).",
+          ),
+        save: z
+          .boolean()
+          .optional()
+          .describe("Save a copy to disk (default true)."),
+        extractText: z
+          .boolean()
+          .optional()
+          .describe(
+            "Return the text of PDF, Word (.docx) and text files (default true). false = only save and report metadata.",
           ),
       },
     },

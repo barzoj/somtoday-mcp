@@ -1,3 +1,4 @@
+import { fetchHolidays } from "./schedule.js";
 import { htmlToPlain } from "../html.js";
 import type { ApiClient } from "./client.js";
 import { simplify } from "./simplify.js";
@@ -78,6 +79,7 @@ export async function fetchSchoolgegevens(client: ApiClient) {
 
 type RawPagina = {
   id?: number;
+  standaardPagina?: string;
   titel?: string;
   introductie?: string;
   icon?: string;
@@ -94,6 +96,7 @@ export async function fetchSchoolPages(client: ApiClient) {
   return (body.paginas ?? []).map((pagina) =>
     compact({
       paginaId: pagina.id,
+      standaardPagina: pagina.standaardPagina,
       titel: pagina.titel,
       introductie: htmlToPlain(pagina.introductie) || undefined,
       gewijzigd: pagina.wijzigingsdatum ?? pagina.publiceerdatum,
@@ -101,8 +104,38 @@ export async function fetchSchoolPages(client: ApiClient) {
   );
 }
 
+/**
+ * The portal's built-in pages. The page list includes them with these ids,
+ * but they have no page of their own: the portal fills them from
+ * `/vakanties/verzorger` and `/leerlingen/verzorger/schoolgegevens`.
+ */
+export const STANDARD_PAGES: Record<number, "VAKANTIES" | "SCHOOLGEGEVENS"> = {
+  [-1]: "VAKANTIES",
+  [-2]: "SCHOOLGEGEVENS",
+};
+
 /** One school-information page with its topics and document folders (generic shape). */
 export async function fetchSchoolPage(client: ApiClient, paginaId: number) {
+  const standaard = STANDARD_PAGES[paginaId];
+  if (standaard === "VAKANTIES") {
+    return {
+      id: paginaId,
+      standaardPagina: standaard,
+      vakanties: await fetchHolidays(client),
+    };
+  }
+  if (standaard === "SCHOOLGEGEVENS") {
+    return {
+      id: paginaId,
+      standaardPagina: standaard,
+      schoolgegevens: await fetchSchoolgegevens(client),
+    };
+  }
+  if (paginaId < 0) {
+    throw new Error(
+      `Unknown school information page ${paginaId}; use a paginaId from the school_info page list`,
+    );
+  }
   const { body } = await client.get<unknown>(
     `/schoolinformatie/gepubliceerd/v2/paginas/${paginaId}`,
     undefined,

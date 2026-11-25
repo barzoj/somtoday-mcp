@@ -47,6 +47,7 @@ describe("attachments on studiewijzer items", () => {
     const view = compactItem(mapStudiewijzerItem(raw, LEERLING, day));
     expect(view.bijlagen).toEqual([
       {
+        id: 7100,
         naam: "opdracht",
         fileName: "opdracht.pdf",
         fileUrl: "https://files.example.test/opdracht.pdf",

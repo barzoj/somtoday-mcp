@@ -98,6 +98,7 @@ describe("homework (date range)", () => {
     });
     expect(lesson.bijlagen).toEqual([
       {
+        id: 7001,
         naam: "Werkblad",
         fileName: "werkblad.pdf",
         fileUrl: "https://files.example.test/werkblad.pdf",
@@ -184,16 +185,44 @@ describe("homework (date range)", () => {
     expect(out).toMatchObject({ available: false, status: 403 });
   });
 
-  it("refuses ranges over 42 days", async () => {
+  it("reads ranges longer than 42 days week by week, at most 6 weeks at a time", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const slowEmpty = async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight -= 1;
+      return listResponse([]);
+    };
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(LEERLING)],
+      [/heeftInleverperiode=true/, () => listResponse([])],
+      [/toekenningen/, slowEmpty],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await homeworkTool(ctx, { from: "2026-09-01", to: "2026-12-31" }),
+    ) as { days: unknown[] };
+    expect(out.days).toHaveLength(122);
+    const weekCalls = calls.filter((call) =>
+      /jaarWeek=|weeknummer=/.test(call.url.search),
+    );
+    // 18 ISO weeks (36 to 53) x 3 list calls
+    expect(weekCalls).toHaveLength(18 * 3);
+    expect(maxInFlight).toBeLessThanOrEqual(6 * 3);
+  });
+
+  it("refuses ranges over 350 days", async () => {
     const { fetchFn } = routedFetch([
       [/\/account\/me/, () => accountMe(LEERLING)],
     ]);
     const ctx = await toolContext(fetchFn);
     const result = await homeworkTool(ctx, {
-      from: "2026-09-01",
-      to: "2026-12-31",
+      from: "2026-08-01",
+      to: "2027-07-31",
     });
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toMatch(/at most 42/);
+    expect(result.content[0]?.text).toMatch(/at most 350/);
   });
 });
