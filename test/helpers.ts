@@ -135,21 +135,38 @@ export function listResponse(items: unknown[], total = items.length): Response {
   );
 }
 
+/** One restricties row with every section switched on. */
+export function restrictie(id: number, rights: Record<string, boolean> = {}) {
+  return {
+    leerlingId: id,
+    vestigingsId: 77,
+    huiswerkBekijkenAan: true,
+    roosterBekijkenAan: true,
+    cijfersBekijkenAan: true,
+    ...rights,
+  };
+}
+
 /** account/me answer for one child with every section switched on. */
 export function accountMe(id = 4242, rights: Record<string, boolean> = {}) {
   return jsonResponse(200, {
     additionalObjects: {
       restricties: {
-        items: [
-          {
-            leerlingId: id,
-            vestigingsId: 77,
-            huiswerkBekijkenAan: true,
-            roosterBekijkenAan: true,
-            cijfersBekijkenAan: true,
-            ...rights,
-          },
-        ],
+        items: [restrictie(id, rights)],
+      },
+    },
+  });
+}
+
+/** account/me with several linked children (pass leerlingId to tools). */
+export function accountMeChildren(
+  ids: number[],
+  rights: Record<string, boolean> = {},
+) {
+  return jsonResponse(200, {
+    additionalObjects: {
+      restricties: {
+        items: ids.map((id) => restrictie(id, rights)),
       },
     },
   });

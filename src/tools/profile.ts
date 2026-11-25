@@ -1,9 +1,14 @@
-import { describeChildren, loadChildren } from "../api/account.js";
+import {
+  describeChildren,
+  loadChildren,
+  resolveChild,
+} from "../api/account.js";
 import {
   fetchLeerling,
   fetchSchoolPage,
   fetchSchoolPages,
   fetchSchoolgegevens,
+  STANDARD_PAGES,
   fetchTeachers,
 } from "../api/profile.js";
 import { fetchPlaatsingen } from "../api/results.js";
@@ -45,11 +50,18 @@ export async function childrenTool(ctx: ToolContext): Promise<ToolResult> {
 
 export async function schoolInfoTool(
   ctx: ToolContext,
-  args: { paginaId?: number },
+  args: { paginaId?: number; leerlingId?: string },
 ): Promise<ToolResult> {
   return accountTool(ctx, async () => {
     if (args.paginaId !== undefined) {
-      return { pagina: await fetchSchoolPage(ctx.client, args.paginaId) };
+      const needsChild = STANDARD_PAGES[args.paginaId] === "VAKANTIES";
+      const leerlingId = needsChild
+        ? resolveChild(await loadChildren(ctx.client), args.leerlingId)
+            .leerlingId
+        : undefined;
+      return {
+        pagina: await fetchSchoolPage(ctx.client, args.paginaId, leerlingId),
+      };
     }
     const [schoolgegevens, paginas] = await Promise.all([
       section(() => fetchSchoolgegevens(ctx.client)),

@@ -108,7 +108,8 @@ export async function fetchSchoolPages(client: ApiClient) {
  * The portal's built-in pages. The published page list includes them with
  * these synthetic ids (openapi: "UI ids -1 and -2 are client-only"), but
  * GET /paginas/{id} does not serve them: the portal fills -1 from
- * `/vakanties/verzorger` and -2 from `/leerlingen/verzorger/schoolgegevens`.
+ * `/vakanties/leerling/{id}` and -2 from `/leerlingen/verzorger/schoolgegevens`.
+ * (`/vakanties/verzorger` often returns an empty list for parents.)
  * school_info detail must accept the same ids the list returns.
  */
 export const STANDARD_PAGES: Record<number, "VAKANTIES" | "SCHOOLGEGEVENS"> = {
@@ -117,13 +118,22 @@ export const STANDARD_PAGES: Record<number, "VAKANTIES" | "SCHOOLGEGEVENS"> = {
 };
 
 /** One school-information page with its topics and document folders (generic shape). */
-export async function fetchSchoolPage(client: ApiClient, paginaId: number) {
+export async function fetchSchoolPage(
+  client: ApiClient,
+  paginaId: number,
+  leerlingId?: number,
+) {
   const standaard = STANDARD_PAGES[paginaId];
   if (standaard === "VAKANTIES") {
+    if (leerlingId === undefined) {
+      throw new Error(
+        "leerlingId is required for the holidays page (paginaId -1)",
+      );
+    }
     return {
       id: paginaId,
       standaardPagina: standaard,
-      vakanties: await fetchHolidays(client),
+      vakanties: await fetchHolidays(client, leerlingId),
     };
   }
   if (standaard === "SCHOOLGEGEVENS") {

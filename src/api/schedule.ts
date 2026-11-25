@@ -1,6 +1,6 @@
 import { amsterdamYmd, dayOf, eachDay, isoWeeksInRange } from "../dates.js";
 import { htmlToPlain } from "../html.js";
-import type { ApiClient } from "./client.js";
+import { ApiNotAvailableError, type ApiClient } from "./client.js";
 import { linkId, simplify } from "./simplify.js";
 import {
   compact,
@@ -128,11 +128,36 @@ function holidayBounds(holiday: RawHoliday): [string?, string?] {
   ];
 }
 
-/** Every holiday and day off the school published for the parent, as the portal's Vakanties page. */
+/**
+ * Published holidays for one child.
+ * `/vakanties/verzorger` exists but often returns an empty list for parents;
+ * the portal and other clients use `/vakanties/leerling/{id}` instead.
+ * A 403/404 (section off / nothing published) yields `[]` so schedule and
+ * lessons still return the timetable with `holiday: false` / empty vakanties.
+ */
+export async function fetchHolidayItems(
+  client: ApiClient,
+  leerlingId: number,
+): Promise<RawHoliday[]> {
+  try {
+    const { items } = await client.getAll<RawHoliday>(
+      `/vakanties/leerling/${leerlingId}`,
+    );
+    return items;
+  } catch (error) {
+    if (error instanceof ApiNotAvailableError) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/** Every holiday and day off published for this child (school Vakanties page). */
 export async function fetchHolidays(
   client: ApiClient,
+  leerlingId: number,
 ): Promise<Array<{ naam?: string; van?: string; tot?: string }>> {
-  const { items } = await client.getAll<RawHoliday>("/vakanties/verzorger");
+  const items = await fetchHolidayItems(client, leerlingId);
   return items
     .map((holiday) => {
       const [van, tot] = holidayBounds(holiday);
@@ -171,8 +196,7 @@ export async function fetchSchedule(
     ),
   );
   const meldingen = realMeldingen(notes);
-  const holidays = (await client.getAll<RawHoliday>("/vakanties/verzorger"))
-    .items;
+  const holidays = await fetchHolidayItems(client, leerlingId);
   const items = weeks
     .flatMap((week) => week.items)
     .map(mapScheduleItem)
