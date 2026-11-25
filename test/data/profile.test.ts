@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { ApiClient } from "../../src/api/client.js";
+import { fetchSchoolPage } from "../../src/api/profile.js";
 import { ACCEPT_JSON } from "../../src/constants.js";
 import {
   childrenTool,
@@ -11,6 +13,7 @@ import {
   jsonResponse,
   listResponse,
   routedFetch,
+  sessionWithStore,
   toolContext,
   toolJson,
 } from "../helpers.js";
@@ -281,6 +284,32 @@ describe("school_info built-in pages", () => {
       pagina: { vakanties: unknown[] };
     };
     expect(out.pagina.vakanties).toEqual([]);
+  });
+
+  it("rejects holidays page -1 without a leerlingId at the API layer", async () => {
+    const { fetchFn } = routedFetch([]);
+    const session = await sessionWithStore(fetchFn);
+    session.seedAccessToken(
+      "access-fixture-not-jwt-plain",
+      Date.now() + 60_000,
+    );
+    const client = new ApiClient(session, fetchFn);
+    await expect(fetchSchoolPage(client, -1)).rejects.toThrow(
+      /leerlingId is required for the holidays page/,
+    );
+  });
+
+  it("rejects unknown negative paginaIds", async () => {
+    const { fetchFn } = routedFetch([]);
+    const session = await sessionWithStore(fetchFn);
+    session.seedAccessToken(
+      "access-fixture-not-jwt-plain",
+      Date.now() + 60_000,
+    );
+    const client = new ApiClient(session, fetchFn);
+    await expect(fetchSchoolPage(client, -99)).rejects.toThrow(
+      /Unknown school information page -99/,
+    );
   });
 });
 

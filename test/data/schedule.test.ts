@@ -184,6 +184,24 @@ describe("schedule", () => {
     expect(out.days).toEqual([{ datum: "2026-12-21", items: [] }]);
   });
 
+  it("surfaces non-403 holiday failures instead of emptying vakanties", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [/\/afspraakitems\/4242\/jaar\/2026\/week\/52/, () => listResponse([])],
+      [
+        /\/vakanties\/leerling\/4242/,
+        () => jsonResponse(500, { message: "boom" }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const result = await scheduleTool(ctx, {
+      from: "2026-12-21",
+      to: "2026-12-21",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toMatch(/API HTTP 500/);
+  });
+
   it("fetches holidays for the requested child when several are linked", async () => {
     const { fetchFn, calls } = routedFetch([
       [/\/account\/me/, () => accountMeChildren([4242, 5252])],
