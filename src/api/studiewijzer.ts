@@ -32,6 +32,8 @@ export type RawAssembly = {
   assemblyFileType?: string;
   fileName?: string;
   fileUrl?: string;
+  /** Older payloads carry the https link here instead of (or next to) `fileUrl`. */
+  sslUrl?: string;
   fileSize?: number;
   fileExtension?: string;
   contentType?: string;
@@ -42,7 +44,18 @@ export type RawBijlage = {
   omschrijving?: string;
   sortering?: number;
   assemblyResults?: RawAssembly[];
-  bestand?: { bestandsnaam?: string };
+  /**
+   * Newer studiewijzer files: no assemblyResults, only a file record. The portal
+   * opens `publicUrl` when set, else asks `/gcs/download/{bestanddataId}` for a
+   * signed link.
+   */
+  bestand?: {
+    links?: unknown[];
+    bestandsnaam?: string;
+    bestandsgrootte?: number;
+    publicUrl?: string;
+    bestanddataId?: string;
+  };
 };
 
 export type RawExternMateriaal = {
@@ -90,14 +103,19 @@ type RawProjectgroep = {
   projectgroepnaam?: string;
 };
 
-/** Attachment as returned by every tool. `fileUrl` is a link; read it with `download_attachment`. */
+/**
+ * Attachment as returned by every tool. Pass `fileUrl` or `bestanddataId` to
+ * `download_attachment` to save and read it.
+ */
 export type AttachmentView = {
+  id?: number;
   naam: string;
   fileName?: string;
   fileUrl?: string;
   fileSize?: number;
   fileExtension?: string;
   type?: string;
+  bestanddataId?: string;
 };
 
 export type LinkView = { omschrijving: string; uri: string };
@@ -142,19 +160,41 @@ export type StudiewijzerItemView = {
 const FILE_TYPES = ["IMAGE", "VIDEO", "DOCUMENT", "MISC", "AUDIO"];
 
 export function mapAttachment(bijlage: RawBijlage): AttachmentView | undefined {
+  const id = linkId(bijlage);
+  const bestand = bijlage.bestand;
+  // Same order as the portal: a file record wins over assemblyResults.
+  if (
+    bestand &&
+    (bestand.bestandsnaam || bestand.publicUrl || bestand.bestanddataId)
+  ) {
+    const fileName = bestand.bestandsnaam;
+    const extension = fileName?.includes(".")
+      ? fileName.split(".").pop()?.toLowerCase()
+      : undefined;
+    return {
+      id,
+      naam: bijlage.omschrijving?.trim() || fileName || "-",
+      fileName,
+      fileUrl: bestand.publicUrl || undefined,
+      fileSize: bestand.bestandsgrootte,
+      fileExtension: extension,
+      bestanddataId: bestand.bestanddataId || undefined,
+    };
+  }
   const assembly =
     bijlage.assemblyResults?.find((result) =>
       FILE_TYPES.includes(result.assemblyFileType ?? ""),
     ) ?? bijlage.assemblyResults?.[0];
-  const naam =
-    bijlage.omschrijving ?? assembly?.fileName ?? bijlage.bestand?.bestandsnaam;
-  if (!naam && !assembly?.fileUrl) {
+  const fileUrl = assembly?.fileUrl || assembly?.sslUrl || undefined;
+  const naam = bijlage.omschrijving ?? assembly?.fileName;
+  if (!naam && !fileUrl) {
     return undefined;
   }
   return {
+    id,
     naam: naam ?? "-",
-    fileName: assembly?.fileName ?? bijlage.bestand?.bestandsnaam,
-    fileUrl: assembly?.fileUrl,
+    fileName: assembly?.fileName,
+    fileUrl,
     fileSize: assembly?.fileSize,
     fileExtension: assembly?.fileExtension,
     type: assembly?.assemblyFileType,

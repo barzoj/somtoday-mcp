@@ -68,3 +68,5 @@ export const ATTACHMENT_TIMEOUT_MS = 30_000;
 export const ATTACHMENT_MAX_REDIRECTS = 5;
 /** Extra attachment hosts (comma-separated, exact host or `.suffix`), e.g. a school's file CDN. */
 export const ATTACHMENT_HOSTS_ENV = "SOMTODAY_MCP_ATTACHMENT_HOSTS";
+/** Where download_attachment saves files (default ~/Downloads/somtoday-mcp). */
+export const DOWNLOAD_DIR_ENV = "SOMTODAY_MCP_DOWNLOAD_DIR";

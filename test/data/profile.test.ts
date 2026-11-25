@@ -136,6 +136,71 @@ describe("school_info", () => {
   });
 });
 
+describe("school_info built-in pages", () => {
+  it("opens -1 (holidays) and -2 (school data) instead of rejecting them", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/leerlingen\/verzorger\/schoolgegevens/, schoolgegevens],
+      [
+        /\/vakanties\/verzorger/,
+        () =>
+          listResponse([
+            {
+              naam: "Kerstvakantie",
+              beginDatum: "2026-12-19",
+              eindDatum: "2027-01-03",
+            },
+            {
+              naam: "Herfstvakantie",
+              beginDatum: "2026-10-17",
+              eindDatum: "2026-10-25",
+            },
+          ]),
+      ],
+      [
+        /\/schoolinformatie\/gepubliceerd\/v2\/paginas$/,
+        () =>
+          jsonResponse(200, {
+            paginas: [
+              { id: -1, titel: "Vakanties", standaardPagina: "VAKANTIES" },
+              {
+                id: -2,
+                titel: "Schoolgegevens",
+                standaardPagina: "SCHOOLGEGEVENS",
+              },
+            ],
+          }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const list = toolJson(await schoolInfoTool(ctx, {}));
+    expect(list.paginas).toEqual([
+      { paginaId: -1, standaardPagina: "VAKANTIES", titel: "Vakanties" },
+      {
+        paginaId: -2,
+        standaardPagina: "SCHOOLGEGEVENS",
+        titel: "Schoolgegevens",
+      },
+    ]);
+    const holidays = toolJson(await schoolInfoTool(ctx, { paginaId: -1 }));
+    expect(holidays.pagina).toEqual({
+      id: -1,
+      standaardPagina: "VAKANTIES",
+      vakanties: [
+        { naam: "Herfstvakantie", van: "2026-10-17", tot: "2026-10-25" },
+        { naam: "Kerstvakantie", van: "2026-12-19", tot: "2027-01-03" },
+      ],
+    });
+    const school = toolJson(await schoolInfoTool(ctx, { paginaId: -2 })) as {
+      pagina: { standaardPagina: string; schoolgegevens: unknown[] };
+    };
+    expect(school.pagina.standaardPagina).toBe("SCHOOLGEGEVENS");
+    expect(school.pagina.schoolgegevens).toHaveLength(1);
+    expect(calls.some((call) => /paginas\/-/.test(call.url.pathname))).toBe(
+      false,
+    );
+  });
+});
+
 describe("teachers", () => {
   it("lists staff with subjects", async () => {
     const { fetchFn } = routedFetch([

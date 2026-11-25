@@ -123,6 +123,19 @@ describe("assignments status=open without digital hand-in", () => {
       11, 14, 12, 13,
     ]);
     expect(withPaper.verborgenZonderInlevering).toBeUndefined();
+    // Nothing was due digitally, so the old item is not late.
+    expect(withPaper.items[0]).toMatchObject({
+      toekenningId: 11,
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+      geenDigitaleInlevering: true,
+    });
+    // The open one with a later deadline is just open; a digital one past due stays late.
+    expect(withPaper.items[2].geenDigitaleInlevering).toBeUndefined();
+    expect(withPaper.items[1]).toMatchObject({
+      toekenningId: 14,
+      teLaat: true,
+    });
 
     const all = toolJson(await assignmentsTool(ctx, {}, NOW)) as any;
     expect(all.shown).toBe(4);
