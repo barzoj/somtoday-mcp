@@ -57,15 +57,23 @@ const numericId = () =>
 /**
  * school_info list pages include the portal's built-in ids (-1 holidays, -2
  * school contact data). Those are not nonnegative, so they cannot use
- * numericId(); keep the allowed negatives in sync with STANDARD_PAGES.
+ * numericId(); keep the allowed negatives in sync with STANDARD_PAGES
+ * (membership, not only a min range — so gaps stay rejected).
  */
 const paginaIdArg = () => {
   const builtin = Object.keys(STANDARD_PAGES).map(Number);
+  const builtinIds = new Set(builtin);
   const minBuiltin = Math.min(0, ...builtin);
   const builtinPattern = builtin.map(String).join("|");
   return z
     .union([
-      z.number().int().min(minBuiltin),
+      z
+        .number()
+        .int()
+        .min(minBuiltin)
+        .refine((n) => n >= 0 || builtinIds.has(n), {
+          message: "Unknown built-in paginaId",
+        }),
       z.string().regex(new RegExp(`^(?:${builtinPattern}|\\d+)$`)),
     ])
     .transform(Number);

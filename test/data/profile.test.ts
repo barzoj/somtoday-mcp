@@ -199,7 +199,7 @@ describe("school_info built-in pages", () => {
         pagina: Record<string, unknown>;
       };
       expect(detail.pagina).toBeDefined();
-      expect(detail.pagina.id ?? detail.pagina.standaardPagina).toBeTruthy();
+      expect(detail.pagina.id).toBe(paginaId);
       if (paginaId === -1) {
         expect(detail.pagina).toMatchObject({
           id: -1,
@@ -214,7 +214,7 @@ describe("school_info built-in pages", () => {
         expect(detail.pagina.schoolgegevens).toHaveLength(1);
       } else {
         expect(detail.pagina).toMatchObject({
-          id: 9,
+          id: paginaId,
           titel: "Over de school",
           introductie: "Welkom",
         });
