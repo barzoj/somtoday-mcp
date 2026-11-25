@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { ApiClient } from "../../src/api/client.js";
+import { fetchSchoolPage } from "../../src/api/profile.js";
 import { ACCEPT_JSON } from "../../src/constants.js";
 import {
   childrenTool,
@@ -7,12 +9,15 @@ import {
 } from "../../src/tools/profile.js";
 import {
   accountMe,
+  accountMeChildren,
   jsonResponse,
   listResponse,
   routedFetch,
+  sessionWithStore,
   toolContext,
   toolJson,
 } from "../helpers.js";
+import { herfstvakantie2026, kerstvakantie2026 } from "../fixtures/holidays.js";
 
 const schoolgegevens = () =>
   jsonResponse(200, [
@@ -139,22 +144,13 @@ describe("school_info", () => {
 describe("school_info built-in pages", () => {
   it("opens every id from the list fixture, including -1/-2 and normal pages", async () => {
     const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
       [/\/leerlingen\/verzorger\/schoolgegevens/, schoolgegevens],
+      // Parent aggregation often returns [] live; holidays come per child.
+      [/\/vakanties\/verzorger/, () => listResponse([])],
       [
-        /\/vakanties\/verzorger/,
-        () =>
-          listResponse([
-            {
-              naam: "Kerstvakantie",
-              beginDatum: "2026-12-19",
-              eindDatum: "2027-01-03",
-            },
-            {
-              naam: "Herfstvakantie",
-              beginDatum: "2026-10-17",
-              eindDatum: "2026-10-25",
-            },
-          ]),
+        /\/vakanties\/leerling\/4242/,
+        () => listResponse([kerstvakantie2026, herfstvakantie2026]),
       ],
       [
         /\/schoolinformatie\/gepubliceerd\/v2\/paginas\/9$/,
@@ -206,7 +202,7 @@ describe("school_info built-in pages", () => {
           standaardPagina: "VAKANTIES",
           vakanties: [
             { naam: "Herfstvakantie", van: "2026-10-17", tot: "2026-10-25" },
-            { naam: "Kerstvakantie", van: "2026-12-19", tot: "2027-01-03" },
+            { naam: "Kerstvakantie", van: "2026-12-21", tot: "2027-01-03" },
           ],
         });
       } else if (paginaId === -2) {
@@ -221,8 +217,98 @@ describe("school_info built-in pages", () => {
       }
     }
 
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/4242"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) => call.url.pathname.endsWith("/vakanties/verzorger")),
+    ).toBe(false);
     expect(calls.some((call) => /paginas\/-/.test(call.url.pathname))).toBe(
       false,
+    );
+  });
+
+  it("requires leerlingId for page -1 when several children are linked", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMeChildren([4242, 5252])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const result = await schoolInfoTool(ctx, { paginaId: -1 });
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+      error: "Multiple linked students; pass leerlingId",
+      children: [{ leerlingId: 4242 }, { leerlingId: 5252 }],
+    });
+    expect(
+      calls.some((call) => call.url.pathname.includes("/vakanties/")),
+    ).toBe(false);
+  });
+
+  it("loads holidays for the requested child when several are linked", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMeChildren([4242, 5252])],
+      [/\/vakanties\/leerling\/5252/, () => listResponse([kerstvakantie2026])],
+      [/\/vakanties\/leerling\/4242/, () => listResponse([herfstvakantie2026])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await schoolInfoTool(ctx, { paginaId: -1, leerlingId: "5252" }),
+    ) as { pagina: { vakanties: Array<{ naam?: string }> } };
+    expect(out.pagina.vakanties.map((item) => item.naam)).toEqual([
+      "Kerstvakantie",
+    ]);
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/5252"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/4242"),
+      ),
+    ).toBe(false);
+  });
+
+  it("returns empty vakanties when the leerling holidays endpoint is unavailable", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        () => jsonResponse(403, { message: "forbidden" }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: { vakanties: unknown[] };
+    };
+    expect(out.pagina.vakanties).toEqual([]);
+  });
+
+  it("rejects holidays page -1 without a leerlingId at the API layer", async () => {
+    const { fetchFn } = routedFetch([]);
+    const session = await sessionWithStore(fetchFn);
+    session.seedAccessToken(
+      "access-fixture-not-jwt-plain",
+      Date.now() + 60_000,
+    );
+    const client = new ApiClient(session, fetchFn);
+    await expect(fetchSchoolPage(client, -1)).rejects.toThrow(
+      /leerlingId is required for the holidays page/,
+    );
+  });
+
+  it("rejects unknown negative paginaIds", async () => {
+    const { fetchFn } = routedFetch([]);
+    const session = await sessionWithStore(fetchFn);
+    session.seedAccessToken(
+      "access-fixture-not-jwt-plain",
+      Date.now() + 60_000,
+    );
+    const client = new ApiClient(session, fetchFn);
+    await expect(fetchSchoolPage(client, -99)).rejects.toThrow(
+      /Unknown school information page -99/,
     );
   });
 });

@@ -30,7 +30,7 @@ export async function lessonsTool(
     }
     const [weekItems, holidays] = await Promise.all([
       fetchWeekLessons(ctx.client, child.leerlingId, date),
-      fetchHolidays(ctx.client),
+      fetchHolidays(ctx.client, child.leerlingId),
     ]);
     const onHoliday = holidaysOnDate(holidays, date);
     return jsonResult({
