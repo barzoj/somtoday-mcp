@@ -64,6 +64,15 @@ const material = () =>
           },
         ],
       },
+      {
+        omschrijving: "Lesstof map",
+        jaarbijlageMap: { naam: "Samenvattingen" },
+        bestand: {
+          bestandsnaam: "samenvatting.pdf",
+          bestandsgrootte: 50,
+          bestanddataId: "bd-jaar-1",
+        },
+      },
     ],
     externMateriaal: [
       {
@@ -140,6 +149,14 @@ describe("study_material", () => {
         fileExtension: "pdf",
         type: "DOCUMENT",
         map: "Oefentoetsen",
+      },
+      {
+        naam: "Lesstof map",
+        fileName: "samenvatting.pdf",
+        fileSize: 50,
+        fileExtension: "pdf",
+        bestanddataId: "bd-jaar-1",
+        map: "Samenvattingen",
       },
     ]);
     expect(wi.externMateriaal).toEqual([

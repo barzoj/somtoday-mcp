@@ -1,3 +1,5 @@
+import type { RawBijlage } from "./studiewijzer.js";
+
 export type EloRestricties = {
   leerlingId?: number;
   vestigingsId?: number;
@@ -41,7 +43,7 @@ export type StudiewijzerItem = {
   onderwerp?: string;
   huiswerkType?: string;
   omschrijving?: string;
-  bijlagen?: Array<{ bestand?: { bestandsnaam?: string } }>;
+  bijlagen?: RawBijlage[];
   inlevermomenten?: Array<{
     startGeldigheid?: string;
     eindGeldigheid?: string;

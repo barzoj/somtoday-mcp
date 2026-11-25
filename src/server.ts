@@ -153,7 +153,7 @@ export function createServer(
       title: "Homework / study planner",
       description:
         "What to do and learn on which day: every studiewijzer item (lesson, day and week items) for a date range, grouped by day, with description, learning goals, time estimate, test type, teacher note, attachments (file links), external links, hand-in window and status, and the done tick. Also lists hand-in deadlines per day. Defaults to today plus 6 days; at most 350 days (a school year; long ranges are fetched week by week)." +
-        " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
+        " Every item lists bijlagen (fileUrl and/or bestanddataId for download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         ...rangeArgs("Defaults to today."),
         leerlingId: leerlingArg(),
@@ -169,7 +169,7 @@ export function createServer(
       title: "Assignments (hand-ins)",
       description:
         "All hand-in assignments with their window, status (AANKOMEND, IN_TE_LEVEREN, IN_AFWACHTING, AKKOORD), teLaat (boolean when the item has a hand-in window: true only if a digital hand-in was required, the deadline has passed and nothing was submitted; false for paper/in-class items with inleveringenVerwacht 0 or missing — also flagged geenDigitaleInlevering; omitted when there is no hand-in window), description, attachments and links. status=open keeps upcoming and to-do ones, and by default hides past-due items where no digital hand-in is expected (inleveringenVerwacht 0 or missing, e.g. on paper; count in verborgenZonderInlevering); includeNoHandIn=true keeps them. Near-duplicates (same subject, topic, window and status, e.g. published to two groups) are merged by default, with the other ids in duplicaatToekenningIds; dedupe=false lists them separately. Use toekenningId with assignment_detail." +
-        " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
+        " Every item lists bijlagen (fileUrl and/or bestanddataId for download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         status: z.enum(["open", "all"]).optional().describe("Default all."),
         includeNoHandIn: z
@@ -196,7 +196,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Assignment detail",
       description:
-        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl) and links, hand-in window, status, teLaat (true only if a digital hand-in was required, the deadline has passed and nothing was submitted) and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
+        "One hand-in assignment as the parent portal shows it: instruction text, learning goals, files (fileUrl and/or bestanddataId for download_attachment) and links, hand-in window, status, teLaat (true only if a digital hand-in was required, the deadline has passed and nothing was submitted) and group. Submitted files and teacher reactions are only visible to the student in Somtoday, so they are not returned.",
       inputSchema: {
         toekenningId: numericId().describe(
           "toekenningId from assignments (number or digit string).",
@@ -214,7 +214,7 @@ export function createServer(
       title: "Study material",
       description:
         "Studiemateriaal per subject: lesson material from the study planner (by date), year attachments by folder (file links), external links, and methods/publisher links (book fund). Without arguments: the subjects that have material, plus personal learning products when the school allows it. vak = name, abbreviation or uuid; all=true fetches every subject." +
-        " Every item lists bijlagen (fileUrl, readable with download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
+        " Every item lists bijlagen (fileUrl and/or bestanddataId for download_attachment) and externeMaterialen; empty means the teacher attached nothing (lesmateriaal=true is only a flag, there is no separate material call).",
       inputSchema: {
         vak: textOrNumber()
           .optional()
@@ -545,7 +545,7 @@ export function createServer(
       annotations: READ_ONLY,
       title: "Download attachment",
       description:
-        "Save an attachment (from homework, assignments, schedule, study material or messages) to the download folder and read its text. Pass the attachment's fileUrl as url, or its bestanddataId (files without a fileUrl; a signed link is requested from Somtoday with your session). Returns savedPath (folder: SOMTODAY_MCP_DOWNLOAD_DIR, default ~/Downloads/somtoday-mcp), size, type and extracted text for PDF, Word (.docx), text, HTML, CSV and JSON. Max 10 MB; fileUrl only from https Somtoday hosts (extend with SOMTODAY_MCP_ATTACHMENT_HOSTS); no token is sent to file hosts.",
+        "Save an attachment (from homework, assignments, schedule, study material or messages) to the download folder. Pass the attachment's fileUrl as url, or its bestanddataId (files without a fileUrl; a signed link is requested from Somtoday with your session). Returns savedPath (folder: SOMTODAY_MCP_DOWNLOAD_DIR, default ~/Downloads/somtoday-mcp), size, type and fileName — no text extraction. Max 10 MB; fileUrl only from https Somtoday hosts (extend with SOMTODAY_MCP_ATTACHMENT_HOSTS); no token is sent to file hosts.",
       inputSchema: {
         url: z
           .url()
@@ -571,12 +571,6 @@ export function createServer(
           .boolean()
           .optional()
           .describe("Save a copy to disk (default true)."),
-        extractText: z
-          .boolean()
-          .optional()
-          .describe(
-            "Return the text of PDF, Word (.docx) and text files (default true). false = only save and report metadata.",
-          ),
       },
     },
     async (args) => downloadAttachmentTool(ctx, args),

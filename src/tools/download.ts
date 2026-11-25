@@ -18,13 +18,13 @@ export type DownloadArgs = {
   bestanddataId?: string;
   fileName?: string;
   save?: boolean;
-  extractText?: boolean;
 };
 
 /**
- * Save an attachment to the download directory and read its text. Takes the
- * attachment's `fileUrl` (allow-listed hosts, fetched without a token) or its
+ * Save an attachment to the download directory. Takes the attachment's
+ * `fileUrl` (allow-listed hosts, fetched without a token) or its
  * `bestanddataId` (a signed link is requested from Somtoday with the session).
+ * Returns path and metadata only; no text extraction.
  */
 export async function downloadAttachmentTool(
   ctx: ToolContext,
@@ -39,7 +39,6 @@ export async function downloadAttachmentTool(
   }
   const options = {
     saveDir: args.save === false ? undefined : downloadDir(),
-    extractText: args.extractText !== false,
     fallbackName: args.fileName,
   };
   if (url && (!bestanddataId || isAllowedUrl(url))) {

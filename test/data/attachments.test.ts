@@ -83,7 +83,7 @@ describe("attachments on studiewijzer items", () => {
     });
   });
 
-  it("falls back to the stored file name when there is no assembly result", () => {
+  it("falls back to the stored file name when there is no download key", () => {
     const raw = toekenning(
       "Dag",
       33,
@@ -95,6 +95,39 @@ describe("attachments on studiewijzer items", () => {
     const [file] = mapStudiewijzerItem(raw, LEERLING, day).bijlagen;
     expect(file).toMatchObject({ naam: "oud.docx", fileName: "oud.docx" });
     expect(file?.fileUrl).toBeUndefined();
+    expect(file?.bestanddataId).toBeUndefined();
+  });
+
+  it("exposes bestanddataId on homework/planner items with a file-record bijlage", () => {
+    const raw = toekenning(
+      "Dag",
+      34,
+      { datumTijd: "2026-10-21T08:00:00Z" },
+      {
+        bijlagen: [
+          {
+            links: [{ id: 8801, rel: "self" }],
+            omschrijving: "Lesstof",
+            bestand: {
+              bestandsnaam: "lesstof.pdf",
+              bestandsgrootte: 4096,
+              bestanddataId: "b7f1c2d4-0000-4000-8000-000000000099",
+            },
+          },
+        ],
+      },
+    ) as RawToekenning;
+    const [file] = compactItem(
+      mapStudiewijzerItem(raw, LEERLING, day),
+    ).bijlagen;
+    expect(file).toEqual({
+      id: 8801,
+      naam: "Lesstof",
+      fileName: "lesstof.pdf",
+      fileSize: 4096,
+      fileExtension: "pdf",
+      bestanddataId: "b7f1c2d4-0000-4000-8000-000000000099",
+    });
   });
 });
 
