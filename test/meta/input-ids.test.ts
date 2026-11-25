@@ -26,6 +26,8 @@ describe("id-like inputs", () => {
     ["homework", { leerlingId: 4242 }],
     ["study_material", { vak: 77 }],
     ["subject_grades", { vak: "wi" }],
+    ["grades_latest", { leerlingId: 4242 }],
+    ["retakes", { leerlingId: 4242 }],
     ["messages", { conversatieId: 9 }],
     ["school_info", { paginaId: "9" }],
     ["school_info", { paginaId: -1 }],
@@ -61,6 +63,7 @@ describe("tool schemas", () => {
     for (const tool of tools) {
       expect(JSON.stringify(tool.inputSchema), tool.name).not.toContain("$ref");
     }
+    expect(tools.map((tool) => tool.name)).toContain("retakes");
   });
 });
 

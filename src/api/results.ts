@@ -172,7 +172,7 @@ export function mapHerkansing(raw: RawResult) {
   });
 }
 
-/** True when the result has a retake policy or a completed retake attempt. */
+/** True when the result has a retake policy (`herkansing` present and not Geen). */
 export function hasHerkansing(view: ResultView): boolean {
   return Boolean(view.herkansing);
 }

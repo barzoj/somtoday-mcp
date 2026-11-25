@@ -74,6 +74,14 @@ describe("mapHerkansing / mapPogingen", () => {
     expect(mapHerkansing({})).toBeUndefined();
   });
 
+  it("keeps policy-only herkansing without scored attempts", () => {
+    expect(
+      mapHerkansing({
+        herkansing: "EenKeerHoogste",
+      }),
+    ).toEqual({ soort: "EenKeerHoogste" });
+  });
+
   it("keeps an attempt that only has a remark", () => {
     expect(
       mapPogingen({
@@ -87,6 +95,20 @@ describe("mapHerkansing / mapPogingen", () => {
         opmerkingen: "Nog in te plannen",
       },
     ]);
+  });
+
+  it("keeps geldendPoging 0 (first attempt is the counting one)", () => {
+    expect(
+      mapHerkansing({
+        herkansing: "EenKeerHoogste",
+        herkansingsnummer: 0,
+        formattedEerstePoging: "8,0",
+      }),
+    ).toMatchObject({
+      soort: "EenKeerHoogste",
+      geldendPoging: 0,
+      eerstePoging: "8,0",
+    });
   });
 });
 
@@ -113,10 +135,21 @@ describe("pickRetakes", () => {
         }),
       ),
     );
+    const missedWithPolicy = mapResult(
+      asRaw(
+        result(4, {
+          bijzonderheid: "NietGemaakt",
+          formattedResultaat: "*",
+          formattedHerkansing1: undefined,
+        }),
+      ),
+    );
     expect(hasHerkansing(withRetake)).toBe(true);
     expect(isNietGemaakt(missed)).toBe(true);
-    const picked = pickRetakes([withRetake, missed, plain]);
-    expect(picked.herkansingen).toEqual([withRetake]);
+    expect(hasHerkansing(missedWithPolicy)).toBe(true);
+    expect(isNietGemaakt(missedWithPolicy)).toBe(true);
+    const picked = pickRetakes([withRetake, missed, plain, missedWithPolicy]);
+    expect(picked.herkansingen).toEqual([withRetake, missedWithPolicy]);
     expect(picked.nietGemaakt).toEqual([missed]);
   });
 });
