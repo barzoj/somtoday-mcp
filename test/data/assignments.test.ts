@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   categorize,
+  expectsDigitalHandIn,
   fetchAssignmentDetail,
 } from "../../src/api/assignments.js";
 import {
@@ -150,6 +151,52 @@ describe("teLaat for digital vs non-digital hand-ins (#82)", () => {
     const view = mapStudiewijzerItem(raw as any, LEERLING, amsterdamYmd);
     expect(view.inlevermoment).toBeUndefined();
     expect(categorize(view, NOW)).toEqual({});
+  });
+
+  it("treats a past window with missing inleveringenVerwacht as not late", () => {
+    const view = {
+      soort: "dag" as const,
+      huiswerkType: "HUISWERK",
+      bijlagen: [],
+      externeMaterialen: [],
+      inlevermoment: {
+        start: "2026-09-01T06:00:00Z",
+        eind: "2026-09-10T21:59:00Z",
+      },
+    };
+    expect(categorize(view, NOW)).toEqual({
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+      geenDigitaleInlevering: true,
+    });
+  });
+
+  it("expectsDigitalHandIn is false without a positive count", () => {
+    expect(expectsDigitalHandIn({})).toBe(false);
+    expect(expectsDigitalHandIn({ inlevermoment: {} })).toBe(false);
+    expect(
+      expectsDigitalHandIn({ inlevermoment: { inleveringenVerwacht: 0 } }),
+    ).toBe(false);
+    expect(
+      expectsDigitalHandIn({ inlevermoment: { inleveringenVerwacht: 1 } }),
+    ).toBe(true);
+  });
+
+  it("open window without eind is not late", () => {
+    const view = {
+      soort: "dag" as const,
+      huiswerkType: "HUISWERK",
+      bijlagen: [],
+      externeMaterialen: [],
+      inlevermoment: {
+        start: "2026-09-01T06:00:00Z",
+        inleveringenVerwacht: 1,
+      },
+    };
+    expect(categorize(view, NOW)).toEqual({
+      categorie: "IN_TE_LEVEREN",
+      teLaat: false,
+    });
   });
 });
 
