@@ -33,18 +33,27 @@ export type RawResult = {
   formattedHerkansing1?: string;
   formattedHerkansing2?: string;
   cijferEerstePoging?: number;
+  cijferHerkansing1?: number;
+  cijferHerkansing2?: number;
   datumInvoerEerstePoging?: string;
   datumInvoerHerkansing1?: string;
+  datumInvoerHerkansing2?: string;
   datumInvoer?: string;
   herkansing?: string;
+  herkansingsnummer?: number;
   isCijfer?: boolean;
   isLabel?: boolean;
   isVoldoende?: boolean;
+  isVoldoendeEerstePoging?: boolean;
+  isVoldoendeHerkansing1?: boolean;
+  isVoldoendeHerkansing2?: boolean;
   label?: string;
   labelAfkorting?: string;
   omschrijving?: string;
   opmerkingen?: string;
   opmerkingenEerstePoging?: string;
+  opmerkingenHerkansing1?: string;
+  opmerkingenHerkansing2?: string;
   bijzonderheid?: string;
   periode?: number;
   toetscode?: string;
@@ -69,20 +78,113 @@ export type RawResult = {
 
 export type ResultView = ReturnType<typeof mapResult>;
 
+/** Attempt labels used by the Somtoday leerling web client for poging 0/1/2. */
+const POGING_OMSCHRIJVING = [
+  "Eerste poging",
+  "Herkansing",
+  "Tweede herkansing",
+] as const;
+
+export type PogingView = {
+  poging: 0 | 1 | 2;
+  omschrijving: (typeof POGING_OMSCHRIJVING)[number];
+  resultaat?: string;
+  datum?: string;
+  voldoende?: boolean;
+  opmerkingen?: string;
+};
+
+/**
+ * Build the first attempt + up to two retakes from a geldend result.
+ * Field names and poging numbering match the leerling portal client
+ * (NONtoday/leerling-source `getPogingData` / `mapToLaatsteResultaat`).
+ */
+export function mapPogingen(raw: RawResult): PogingView[] {
+  const specs: Array<{
+    poging: 0 | 1 | 2;
+    resultaat?: string;
+    datum?: string;
+    voldoende?: boolean;
+    opmerkingen?: string;
+  }> = [
+    {
+      poging: 0,
+      resultaat: raw.formattedEerstePoging,
+      datum: raw.datumInvoerEerstePoging,
+      voldoende: raw.isVoldoendeEerstePoging,
+      opmerkingen: raw.opmerkingenEerstePoging,
+    },
+    {
+      poging: 1,
+      resultaat: raw.formattedHerkansing1,
+      datum: raw.datumInvoerHerkansing1,
+      voldoende: raw.isVoldoendeHerkansing1,
+      opmerkingen: raw.opmerkingenHerkansing1,
+    },
+    {
+      poging: 2,
+      resultaat: raw.formattedHerkansing2,
+      datum: raw.datumInvoerHerkansing2,
+      voldoende: raw.isVoldoendeHerkansing2,
+      opmerkingen: raw.opmerkingenHerkansing2,
+    },
+  ];
+  return specs
+    .filter((spec) => Boolean(spec.resultaat || spec.opmerkingen))
+    .map((spec) =>
+      compact({
+        poging: spec.poging,
+        omschrijving: POGING_OMSCHRIJVING[spec.poging],
+        resultaat: spec.resultaat,
+        datum: spec.datum,
+        voldoende: spec.voldoende,
+        opmerkingen: spec.opmerkingen,
+      }),
+    );
+}
+
+/**
+ * Retake policy + attempt scores when the column allows a resit.
+ * `herkansing` codes observed in the parent OpenAPI sample and the leerling
+ * client: Geen, EenKeerHoogste, EenKeerLaatste, EenkeerGemiddeld,
+ * TweeKeerHoogste, TweeKeerLaatste, TweeKeerGemiddeld.
+ */
+export function mapHerkansing(raw: RawResult) {
+  if (!raw.herkansing || raw.herkansing === "Geen") {
+    return undefined;
+  }
+  return compact({
+    soort: raw.herkansing,
+    geldendPoging: raw.herkansingsnummer,
+    eerstePoging: raw.formattedEerstePoging,
+    herkansing1: raw.formattedHerkansing1,
+    herkansing2: raw.formattedHerkansing2,
+    datumEerstePoging: raw.datumInvoerEerstePoging,
+    datumHerkansing1: raw.datumInvoerHerkansing1,
+    datumHerkansing2: raw.datumInvoerHerkansing2,
+    opmerkingenEerstePoging: raw.opmerkingenEerstePoging,
+    opmerkingenHerkansing1: raw.opmerkingenHerkansing1,
+    opmerkingenHerkansing2: raw.opmerkingenHerkansing2,
+    voldoendeEerstePoging: raw.isVoldoendeEerstePoging,
+    voldoendeHerkansing1: raw.isVoldoendeHerkansing1,
+    voldoendeHerkansing2: raw.isVoldoendeHerkansing2,
+    pogingen: mapPogingen(raw),
+  });
+}
+
+/** True when the result has a retake policy or a completed retake attempt. */
+export function hasHerkansing(view: ResultView): boolean {
+  return Boolean(view.herkansing);
+}
+
+/** Missed-test marker on a result column (`bijzonderheid=NietGemaakt`). */
+export function isNietGemaakt(view: ResultView): boolean {
+  return view.bijzonderheid === "NietGemaakt";
+}
+
 /** Every field the portal shows for one result column value. */
 export function mapResult(raw: RawResult) {
   const extra = raw.additionalObjects ?? {};
-  const herkansing =
-    raw.herkansing && raw.herkansing !== "Geen"
-      ? compact({
-          soort: raw.herkansing,
-          eerstePoging: raw.formattedEerstePoging,
-          herkansing1: raw.formattedHerkansing1,
-          herkansing2: raw.formattedHerkansing2,
-          datumHerkansing1: raw.datumInvoerHerkansing1,
-          opmerkingenEerstePoging: raw.opmerkingenEerstePoging,
-        })
-      : undefined;
   return compact({
     id: linkId(raw),
     vak: extra.vaknaam,
@@ -109,7 +211,7 @@ export function mapResult(raw: RawResult) {
     datum: raw.datumInvoerEerstePoging ?? raw.datumInvoer,
     opmerkingen: raw.opmerkingen,
     bijzonderheid: raw.bijzonderheid,
-    herkansing,
+    herkansing: mapHerkansing(raw),
     volgnummer: raw.volgnummer,
   });
 }

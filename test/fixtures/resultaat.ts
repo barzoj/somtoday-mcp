@@ -1,0 +1,35 @@
+/** Neutral geldend-result fixture for grades / retakes tests. */
+export function result(n: number, extra: Record<string, unknown> = {}) {
+  return {
+    $type: "resultaten.RGeldendVoortgangsdossierResultaat",
+    links: [{ id: 1000 + n, rel: "self" }],
+    additionalObjects: {
+      vaknaam: "Wiskunde",
+      resultaatkolom: "P1-T1",
+      naamalternatiefniveau: null,
+      vakuuid: "vak-uuid",
+      lichtinguuid: "lichting-uuid",
+    },
+    cijfer: 7.5,
+    formattedResultaat: "7,5",
+    formattedEerstePoging: "5,0",
+    formattedHerkansing1: "7,5",
+    herkansing: "EenKeerHoogste",
+    herkansingsnummer: 1,
+    isCijfer: true,
+    isVoldoende: true,
+    isVoldoendeEerstePoging: false,
+    isVoldoendeHerkansing1: true,
+    omschrijving: `Toets ${n}`,
+    opmerkingen: "Goed",
+    periode: 1,
+    toetscode: "T1",
+    toetssoort: "SO",
+    type: "Toetskolom",
+    volgnummer: n,
+    weging: 2,
+    datumInvoerEerstePoging: "2026-10-01T10:00:00Z",
+    datumInvoerHerkansing1: "2026-10-15T10:00:00Z",
+    ...extra,
+  };
+}
