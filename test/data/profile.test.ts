@@ -702,6 +702,66 @@ describe("school_info built-in pages", () => {
     expect(result.content[0]?.text).toMatch(/API HTTP 500/);
   });
 
+  it("follows Content-Range when total is unknown (*)", async () => {
+    let holidayHits = 0;
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          holidayHits += 1;
+          const range = new Headers(init?.headers).get("range");
+          if (!range) {
+            return jsonResponse(
+              206,
+              { items: [kerstvakantie2026] },
+              { "content-range": "items 0-0/*" },
+            );
+          }
+          expect(range).toBe("items=1-100");
+          // No Content-Range on the follow-up → paging stops.
+          return jsonResponse(206, { items: [herfstvakantie2026] });
+        },
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: { vakanties: Array<{ naam?: string }> };
+    };
+    expect(out.pagina.vakanties.map((item) => item.naam).toSorted()).toEqual([
+      "Herfstvakantie",
+      "Kerstvakantie",
+    ]);
+    expect(holidayHits).toBe(2);
+  });
+
+  it("keeps empty status when a later Accept:json attempt is 403", async () => {
+    // Platinum empty (success) then json 403: must not flip to unavailable.
+    let hit = 0;
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          hit += 1;
+          const accept = new Headers(init?.headers).get("accept") ?? "";
+          if (accept.includes("application/json")) {
+            return jsonResponse(403, { message: "forbidden" });
+          }
+          return listResponse([]);
+        },
+      ],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: { vakantiesStatus: string; vakantiesEndpoint: string };
+    };
+    expect(out.pagina.vakantiesStatus).toBe("empty");
+    expect(out.pagina.vakantiesEndpoint).toBe("/vakanties/verzorger");
+    expect(hit).toBeGreaterThanOrEqual(2);
+  });
+
   it("rejects holidays page -1 without a leerlingId at the API layer", async () => {
     const { fetchFn } = routedFetch([]);
     const session = await sessionWithStore(fetchFn);
