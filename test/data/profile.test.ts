@@ -406,6 +406,11 @@ describe("school_info built-in pages", () => {
         vakanties: unknown[];
         vakantiesStatus: string;
         vakantiesEndpoint: string;
+        vakantiesAttempts: Array<{
+          endpoint: string;
+          httpStatus: number;
+          itemCount: number;
+        }>;
       };
     };
     expect(out.pagina.vakanties).toEqual([]);
@@ -413,6 +418,125 @@ describe("school_info built-in pages", () => {
     expect(out.pagina.vakantiesEndpoint).toBe(
       "/vakanties/leerling/{leerlingId}?accept=json",
     );
+    expect(out.pagina.vakantiesAttempts).toEqual([
+      {
+        endpoint: "/vakanties/leerling/{leerlingId}",
+        httpStatus: 206,
+        itemCount: 0,
+      },
+      {
+        endpoint: "/vakanties/leerling/{leerlingId}?accept=json",
+        httpStatus: 206,
+        itemCount: 0,
+      },
+      { endpoint: "/vakanties/verzorger", httpStatus: 403, itemCount: 0 },
+    ]);
+  });
+
+  it("uses the child entity id from GET /leerlingen when restricties id yields empty vakanties", async () => {
+    // Parent session: restricties.leerlingId can disagree with /leerlingen self-link
+    // (elisaado: parents take the id from GET /leerlingen). Try both.
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(1111)],
+      [
+        /\/leerlingen\/1111$/,
+        () =>
+          jsonResponse(200, {
+            links: [{ id: 4242, rel: "self", type: "leerling.RLeerling" }],
+            roepnaam: "Kind",
+          }),
+      ],
+      [
+        /\/leerlingen$/,
+        () =>
+          listResponse([
+            {
+              links: [{ id: 4242, rel: "self", type: "leerling.RLeerling" }],
+            },
+          ]),
+      ],
+      [/\/vakanties\/leerling\/1111/, () => listResponse([])],
+      [/\/vakanties\/leerling\/4242/, () => listResponse([kerstvakantie2026])],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: {
+        vakanties: Array<{ naam?: string }>;
+        vakantiesStatus: string;
+        vakantiesEndpoint: string;
+        vakantiesAttempts: Array<{
+          endpoint: string;
+          httpStatus: number;
+          itemCount: number;
+        }>;
+      };
+    };
+    expect(out.pagina.vakanties.map((item) => item.naam)).toEqual([
+      "Kerstvakantie",
+    ]);
+    expect(out.pagina.vakantiesStatus).toBe("ok");
+    expect(out.pagina.vakantiesEndpoint).toBe(
+      "/vakanties/leerling/{leerlingId}",
+    );
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/4242"),
+      ),
+    ).toBe(true);
+    expect(out.pagina.vakantiesAttempts.some((a) => a.itemCount > 0)).toBe(
+      true,
+    );
+    expect(
+      JSON.stringify(out.pagina.vakantiesAttempts).includes("1111") ||
+        JSON.stringify(out.pagina.vakantiesAttempts).includes("4242"),
+    ).toBe(false);
+  });
+
+  it("follows Content-Range after a plain first holidays GET like AbstractState", async () => {
+    let holidayHits = 0;
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          holidayHits += 1;
+          const range = new Headers(init?.headers).get("range");
+          if (!range) {
+            // Probe page: total advertised, no items yet (parent quirk).
+            return jsonResponse(
+              206,
+              { items: [] },
+              { "content-range": "items 0-0/2" },
+            );
+          }
+          expect(range).toBe("items=1-1");
+          return jsonResponse(
+            206,
+            { items: [kerstvakantie2026, herfstvakantie2026] },
+            { "content-range": "items 1-1/2" },
+          );
+        },
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: {
+        vakanties: Array<{ naam?: string }>;
+        vakantiesStatus: string;
+        vakantiesAttempts: Array<{ itemCount: number }>;
+      };
+    };
+    expect(out.pagina.vakantiesStatus).toBe("ok");
+    expect(out.pagina.vakanties.map((item) => item.naam).toSorted()).toEqual([
+      "Herfstvakantie",
+      "Kerstvakantie",
+    ]);
+    expect(holidayHits).toBe(2);
+    expect(out.pagina.vakantiesAttempts[0]?.itemCount).toBe(2);
+    expect(
+      calls.filter((call) => call.url.pathname.includes("/vakanties/")),
+    ).toHaveLength(2);
   });
 
   it("rejects holidays page -1 without a leerlingId at the API layer", async () => {
