@@ -472,4 +472,55 @@ describe("schedule", () => {
     ).toBe(true);
     expect(out.vakantiesAttempts.at(-1)?.itemCount).toBe(1);
   });
+
+  it("does not use a sibling's vakanties id when several children are linked", async () => {
+    // Parent with two kids: requested child's leerling endpoints stay empty;
+    // sibling has holidays. Must not leak the sibling's list into this child.
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMeChildren([1111, 2222])],
+      [/\/afspraakitems\/1111\//, () => listResponse([])],
+      [
+        /\/leerlingen\/1111$/,
+        () =>
+          jsonResponse(200, {
+            links: [{ id: 1111, rel: "self", type: "leerling.RLeerling" }],
+          }),
+      ],
+      [
+        /\/leerlingen$/,
+        () =>
+          listResponse([
+            {
+              links: [{ id: 1111, rel: "self", type: "leerling.RLeerling" }],
+            },
+            {
+              links: [{ id: 2222, rel: "self", type: "leerling.RLeerling" }],
+            },
+          ]),
+      ],
+      [/\/vakanties\/leerling\/1111/, () => listResponse([])],
+      [/\/vakanties\/leerling\/2222/, () => listResponse([kerstvakantie2026])],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(
+      await scheduleTool(ctx, {
+        from: "2026-12-21",
+        to: "2026-12-28",
+        leerlingId: "1111",
+      }),
+    ) as {
+      vakanties: unknown[];
+      vakantiesStatus: string;
+      vakantiesAttempts: Array<{ itemCount: number }>;
+    };
+    expect(out.vakantiesStatus).toBe("empty");
+    expect(out.vakanties).toEqual([]);
+    expect(
+      calls.some((call) =>
+        call.url.pathname.includes("/vakanties/leerling/2222"),
+      ),
+    ).toBe(false);
+    expect(out.vakantiesAttempts.every((a) => a.itemCount === 0)).toBe(true);
+  });
 });

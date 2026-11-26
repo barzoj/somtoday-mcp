@@ -486,8 +486,9 @@ paths:
         first request; paging Range is only added for later pages from
         Content-Range. Prefer that unpaginated flow — `Range: items=0-99` on the
         first request has been observed to yield an empty page for some parent
-        accounts. Fallbacks: same path with Accept application/json, alternate
-        child ids from `/leerlingen` when they differ, then `/vakanties/verzorger`.
+        accounts. Fallbacks: same path with Accept application/json, this
+        child's self-link (or the sole `/leerlingen` list id) when it differs,
+        then `/vakanties/verzorger`. Never a sibling's id.
       parameters:
         - $ref: '#/components/parameters/leerlingId'
       responses:

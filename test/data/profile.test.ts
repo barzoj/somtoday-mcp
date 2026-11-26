@@ -539,6 +539,169 @@ describe("school_info built-in pages", () => {
     ).toHaveLength(2);
   });
 
+  it("stops Content-Range follow-ups when a later holidays page is empty", async () => {
+    let holidayHits = 0;
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          holidayHits += 1;
+          const range = new Headers(init?.headers).get("range");
+          if (!range) {
+            return jsonResponse(
+              206,
+              { items: [kerstvakantie2026] },
+              { "content-range": "items 0-0/5" },
+            );
+          }
+          // Stuck/empty follow-up: must not loop until VAKANTIES_MAX_PAGES.
+          return jsonResponse(
+            206,
+            { items: [] },
+            { "content-range": "items 0-0/5" },
+          );
+        },
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: {
+        vakanties: Array<{ naam?: string }>;
+        vakantiesStatus: string;
+      };
+    };
+    expect(out.pagina.vakantiesStatus).toBe("ok");
+    expect(out.pagina.vakanties.map((item) => item.naam)).toEqual([
+      "Kerstvakantie",
+    ]);
+    expect(holidayHits).toBe(2);
+  });
+
+  it("stops Content-Range follow-ups when the range does not advance", async () => {
+    let holidayHits = 0;
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          holidayHits += 1;
+          const range = new Headers(init?.headers).get("range");
+          if (!range) {
+            return jsonResponse(
+              206,
+              { items: [kerstvakantie2026] },
+              { "content-range": "items 0-0/5" },
+            );
+          }
+          // Items returned but Content-Range stuck — must not re-request forever.
+          return jsonResponse(
+            206,
+            { items: [herfstvakantie2026] },
+            { "content-range": "items 0-0/5" },
+          );
+        },
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: { vakanties: Array<{ naam?: string }> };
+    };
+    expect(out.pagina.vakanties.map((item) => item.naam).toSorted()).toEqual([
+      "Herfstvakantie",
+      "Kerstvakantie",
+    ]);
+    expect(holidayHits).toBe(2);
+  });
+
+  it("keeps holidays from earlier pages when a Content-Range follow-up is 403", async () => {
+    let holidayHits = 0;
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          holidayHits += 1;
+          const range = new Headers(init?.headers).get("range");
+          if (!range) {
+            return jsonResponse(
+              206,
+              { items: [kerstvakantie2026] },
+              { "content-range": "items 0-0/3" },
+            );
+          }
+          return jsonResponse(403, { message: "forbidden" });
+        },
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: {
+        vakanties: Array<{ naam?: string }>;
+        vakantiesStatus: string;
+      };
+    };
+    expect(out.pagina.vakantiesStatus).toBe("ok");
+    expect(out.pagina.vakanties.map((item) => item.naam)).toEqual([
+      "Kerstvakantie",
+    ]);
+    expect(holidayHits).toBe(2);
+  });
+
+  it("reports unavailable when the first follow-up page is 403 and the probe was empty", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          const range = new Headers(init?.headers).get("range");
+          if (!range) {
+            return jsonResponse(
+              206,
+              { items: [] },
+              { "content-range": "items 0-0/2" },
+            );
+          }
+          return jsonResponse(403, { message: "forbidden" });
+        },
+      ],
+      [
+        /\/vakanties\/verzorger/,
+        () => jsonResponse(403, { message: "forbidden" }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: { vakantiesStatus: string; vakanties: unknown[] };
+    };
+    expect(out.pagina.vakanties).toEqual([]);
+    expect(out.pagina.vakantiesStatus).toBe("unavailable:403");
+  });
+
+  it("surfaces a non-403 follow-up failure from holidays paging", async () => {
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [
+        /\/vakanties\/leerling\/4242/,
+        (_url, init) => {
+          const range = new Headers(init?.headers).get("range");
+          if (!range) {
+            return jsonResponse(
+              206,
+              { items: [] },
+              { "content-range": "items 0-0/2" },
+            );
+          }
+          return jsonResponse(500, { message: "boom" });
+        },
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const result = await schoolInfoTool(ctx, { paginaId: -1 });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toMatch(/API HTTP 500/);
+  });
+
   it("rejects holidays page -1 without a leerlingId at the API layer", async () => {
     const { fetchFn } = routedFetch([]);
     const session = await sessionWithStore(fetchFn);

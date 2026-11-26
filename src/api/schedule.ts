@@ -175,8 +175,8 @@ type HolidaySource = {
  * (parent: selected child), which equals `GET /leerlingen/{id}` self-link and
  * `restricties.leerlingId`. elisaado docs tell parents to take the id from
  * `GET /leerlingen`. We start from restricties (same as the rest of this MCP)
- * and also try self-link / list ids when they differ — never the parent
- * account/persoon UUID.
+ * and also try that child's self-link / the sole list id when they differ —
+ * never a sibling's id, and never the parent account/persoon UUID.
  */
 export async function resolveVakantieLeerlingIds(
   client: ApiClient,
@@ -199,8 +199,12 @@ export async function resolveVakantieLeerlingIds(
   }
   try {
     const { items } = await client.getAll<{ links?: unknown[] }>("/leerlingen");
-    for (const item of items) {
-      add(linkId(item));
+    // One linked child: the list id is that child (elisaado parent guidance).
+    // Several children: never add siblings — self-link above already resolved
+    // the requested child; guessing from the list would leak another child's
+    // holidays into schedule/lessons/school_info for this leerlingId.
+    if (items.length === 1) {
+      add(linkId(items[0]));
     }
   } catch {
     // keep ids discovered so far
@@ -212,6 +216,8 @@ export async function resolveVakantieLeerlingIds(
  * Holiday list the way NONtoday AbstractState._unpaginatedGet does:
  * plain GET first (no Range); only later pages send Range from Content-Range.
  * No `additional` / schooljaar / date query — VakantieState uses none.
+ * Caps at {@link VAKANTIES_MAX_PAGES} (NONtoday MAX_REQUESTS); stops when
+ * Content-Range is done, does not advance, or a follow-up page is empty.
  */
 async function getHolidayUnpaginated(
   client: ApiClient,
@@ -223,12 +229,16 @@ async function getHolidayUnpaginated(
     });
     let items = listItems<RawHoliday>(first.body);
     let contentRange = first.contentRange;
+    let previousStart = -1;
     for (let page = 0; page < VAKANTIES_MAX_PAGES - 1; page += 1) {
       const range = parseContentRange(contentRange);
       if (!range || range.total === 0) {
         break;
       }
       const nextStart = range.end + 1;
+      if (nextStart <= previousStart) {
+        break;
+      }
       if (range.total !== undefined && nextStart >= range.total) {
         break;
       }
@@ -236,11 +246,34 @@ async function getHolidayUnpaginated(
         range.total !== undefined ? range.total - nextStart : 100,
         100,
       );
-      const next = await client.get<unknown>(source.path, undefined, {
-        accept: source.accept,
-        range: { start: nextStart, end: nextStart + pageSize - 1 },
-      });
-      items = items.concat(listItems<RawHoliday>(next.body));
+      previousStart = nextStart;
+      let next;
+      try {
+        next = await client.get<unknown>(source.path, undefined, {
+          accept: source.accept,
+          range: { start: nextStart, end: nextStart + pageSize - 1 },
+        });
+      } catch (error) {
+        // Soft-fail like the first GET: keep any items already collected.
+        if (error instanceof ApiNotAvailableError) {
+          if (items.length === 0) {
+            return {
+              items: [],
+              unavailable: error.status,
+              httpStatus: error.status,
+            };
+          }
+          return { items, httpStatus: first.status };
+        }
+        throw error;
+      }
+      const pageItems = listItems<RawHoliday>(next.body);
+      items = items.concat(pageItems);
+      // Follow-up page with no items: do not keep requesting the same gap.
+      // (The empty *first* GET is intentional — parent probe quirk.)
+      if (pageItems.length === 0) {
+        break;
+      }
       contentRange = next.contentRange;
     }
     return { items, httpStatus: first.status };
@@ -258,7 +291,8 @@ async function getHolidayUnpaginated(
  * 1. `/vakanties/leerling/{id}` platinum, unpaginated (NONtoday VakantieState /
  *    Cyfers / elisaado) — id is the child entity id, not the parent
  * 2. same path with `Accept: application/json`
- * 3. alternate child entity ids from `/leerlingen` when they differ
+ * 3. alternate ids for *this* child only (self-link; sole `/leerlingen` list
+ *    entry) — never a sibling
  * 4. `/vakanties/verzorger` (parent portal OpenAPI; often empty)
  *
  * Soft-fails 403/404 so schedule/lessons still return the timetable.
