@@ -126,6 +126,15 @@ describe("schedule", () => {
     expect(out.vakanties).toEqual([
       { naam: "Kerstvakantie", van: "2026-12-21", tot: "2027-01-03" },
     ]);
+    expect((out as { vakantiesStatus?: string }).vakantiesStatus).toBe("ok");
+    expect((out as { vakantiesEndpoint?: string }).vakantiesEndpoint).toBe(
+      "/vakanties/leerling/{leerlingId}",
+    );
+    expect(
+      calls
+        .filter((call) => call.url.pathname.includes("/vakanties/"))
+        .every((call) => call.headers.get("range") === null),
+    ).toBe(true);
     expect(out.days).toHaveLength(8);
     expect(out.days[0]!.items![0]).toMatchObject({
       id: 301,
@@ -195,13 +204,15 @@ describe("schedule", () => {
       [/\/account\/me/, () => accountMe(4242)],
       [/\/afspraakitems\//, slowEmpty],
       [/\/vakanties\/leerling\/4242/, () => listResponse([])],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
     ]);
     const ctx = await toolContext(fetchFn);
     // 2026-08-24 .. 2026-12-31 = 130 days (the failing live call).
     const out = toolJson(
       await scheduleTool(ctx, { from: "2026-08-24", to: "2026-12-31" }),
-    ) as { days: unknown[] };
+    ) as { days: unknown[]; vakantiesStatus: string };
     expect(out.days).toHaveLength(130);
+    expect(out.vakantiesStatus).toBe("empty");
     const weekCalls = calls.filter((call) =>
       call.url.pathname.includes("afspraakitems"),
     );
@@ -259,6 +270,7 @@ describe("schedule", () => {
       ],
       [/\/afspraakitems\//, () => listResponse([])],
       [/\/vakanties\/leerling\/4242/, () => listResponse([])],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
     ]);
     const ctx = await toolContext(fetchFn);
     const out = toolJson(
@@ -315,6 +327,7 @@ describe("schedule", () => {
       ],
       [/\/afspraakitems\//, () => listResponse([])],
       [/\/vakanties\/leerling\/4242/, () => listResponse([])],
+      [/\/vakanties\/verzorger/, () => listResponse([])],
     ]);
     const ctx = await toolContext(fetchFn);
     const out = toolJson(
@@ -348,15 +361,21 @@ describe("schedule", () => {
         /\/vakanties\/leerling\/4242/,
         () => jsonResponse(403, { message: "forbidden" }),
       ],
+      [
+        /\/vakanties\/verzorger/,
+        () => jsonResponse(403, { message: "forbidden" }),
+      ],
     ]);
     const ctx = await toolContext(fetchFn);
     const out = toolJson(
       await scheduleTool(ctx, { from: "2026-12-21", to: "2026-12-21" }),
     ) as {
       vakanties: unknown[];
+      vakantiesStatus: string;
       days: Array<{ datum: string; vakantie?: string; items: unknown[] }>;
     };
     expect(out.vakanties).toEqual([]);
+    expect(out.vakantiesStatus).toBe("unavailable:403");
     expect(out.days).toEqual([{ datum: "2026-12-21", items: [] }]);
   });
 

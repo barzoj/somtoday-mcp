@@ -4,7 +4,11 @@ import {
   sameAmsterdamDate,
 } from "../dates.js";
 import type { ApiClient } from "./client.js";
-import { CANCELLED_STATUS, fetchHolidayItems } from "./schedule.js";
+import {
+  CANCELLED_STATUS,
+  lookupHolidays,
+  type HolidayLookup,
+} from "./schedule.js";
 import type { AfspraakItem, HolidayItem, ItemList } from "./types.js";
 
 export type LessonView = {
@@ -75,6 +79,6 @@ export async function fetchWeekLessons(
 export async function fetchHolidays(
   client: ApiClient,
   leerlingId: number,
-): Promise<HolidayItem[]> {
-  return fetchHolidayItems(client, leerlingId);
+): Promise<HolidayLookup> {
+  return lookupHolidays(client, leerlingId);
 }
