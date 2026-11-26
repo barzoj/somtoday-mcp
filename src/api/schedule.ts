@@ -1,7 +1,12 @@
 import { amsterdamYmd, dayOf, eachDay, isoWeeksInRange } from "../dates.js";
 import { htmlToPlain } from "../html.js";
 import { mapInBatches, WEEKS_PER_BATCH } from "./batch.js";
-import { ApiNotAvailableError, listItems, type ApiClient } from "./client.js";
+import {
+  ApiNotAvailableError,
+  listItems,
+  parseContentRange,
+  type ApiClient,
+} from "./client.js";
 import { linkId, simplify } from "./simplify.js";
 import {
   compact,
@@ -9,6 +14,9 @@ import {
   type AttachmentView,
   type RawBijlage,
 } from "./studiewijzer.js";
+
+/** Same page cap as NONtoday AbstractState._unpaginatedGet (MAX_REQUESTS). */
+const VAKANTIES_MAX_PAGES = 5;
 
 type RawStatus = { status?: string; message?: string };
 type RawAfspraak = {
@@ -135,6 +143,13 @@ export const VAKANTIES_VERZORGER_ENDPOINT = "/vakanties/verzorger";
 
 export type VakantiesStatus = "ok" | "empty" | `unavailable:${number}`;
 
+/** One holiday GET attempt (templates only — no tokens or personal ids). */
+export type VakantiesAttempt = {
+  endpoint: string;
+  httpStatus: number;
+  itemCount: number;
+};
+
 export type HolidayLookup = {
   items: RawHoliday[];
   /** `"ok"` when at least one holiday was returned; `"empty"` when any source
@@ -143,6 +158,8 @@ export type HolidayLookup = {
   vakantiesStatus: VakantiesStatus;
   /** Which path template produced the result (no personal ids). */
   vakantiesEndpoint: string;
+  /** Every attempt, in order (templates only). */
+  vakantiesAttempts: VakantiesAttempt[];
 };
 
 type HolidaySource = {
@@ -152,26 +169,117 @@ type HolidaySource = {
 };
 
 /**
- * One holiday GET without a Range header.
+ * Child entity ids to try for `/vakanties/leerling/{id}`.
  *
- * The official leerling app (NONtoday/leerling-source AbstractState) loads
- * `vakanties/leerling/{id}` with a plain first request — Range only appears on
- * later pages. Our generic `getAll` always sends `Range: items=0-99`, which for
- * this endpoint can yield an empty page on parent accounts. Holiday lists are
- * small enough that one unpaged GET matches the app.
+ * NONtoday VakantieState uses `getLeerlingID()` = JWT `leerlingen.ll[].id`
+ * (parent: selected child), which equals `GET /leerlingen/{id}` self-link and
+ * `restricties.leerlingId`. elisaado docs tell parents to take the id from
+ * `GET /leerlingen`. We start from restricties (same as the rest of this MCP)
+ * and also try that child's self-link / the sole list id when they differ —
+ * never a sibling's id, and never the parent account/persoon UUID.
  */
-async function getHolidayPage(
+export async function resolveVakantieLeerlingIds(
+  client: ApiClient,
+  fromRestricties: number,
+): Promise<number[]> {
+  const ids: number[] = [fromRestricties];
+  const add = (id: number | undefined) => {
+    if (typeof id === "number" && Number.isFinite(id) && !ids.includes(id)) {
+      ids.push(id);
+    }
+  };
+  // Best-effort only: restricties id is enough when /leerlingen is unavailable.
+  try {
+    const { body } = await client.get<{ links?: unknown[] }>(
+      `/leerlingen/${fromRestricties}`,
+    );
+    add(linkId(body));
+  } catch {
+    // keep fromRestricties
+  }
+  try {
+    const { items } = await client.getAll<{ links?: unknown[] }>("/leerlingen");
+    // One linked child: the list id is that child (elisaado parent guidance).
+    // Several children: never add siblings — self-link above already resolved
+    // the requested child; guessing from the list would leak another child's
+    // holidays into schedule/lessons/school_info for this leerlingId.
+    if (items.length === 1) {
+      add(linkId(items[0]));
+    }
+  } catch {
+    // keep ids discovered so far
+  }
+  return ids;
+}
+
+/**
+ * Holiday list the way NONtoday AbstractState._unpaginatedGet does:
+ * plain GET first (no Range); only later pages send Range from Content-Range.
+ * No `additional` / schooljaar / date query — VakantieState uses none.
+ * Caps at {@link VAKANTIES_MAX_PAGES} (NONtoday MAX_REQUESTS); stops when
+ * Content-Range is done, does not advance, or a follow-up page is empty.
+ */
+async function getHolidayUnpaginated(
   client: ApiClient,
   source: HolidaySource,
-): Promise<{ items: RawHoliday[]; unavailable?: number }> {
+): Promise<{ items: RawHoliday[]; unavailable?: number; httpStatus: number }> {
   try {
-    const { body } = await client.get<unknown>(source.path, undefined, {
+    const first = await client.get<unknown>(source.path, undefined, {
       accept: source.accept,
     });
-    return { items: listItems<RawHoliday>(body) };
+    let items = listItems<RawHoliday>(first.body);
+    let contentRange = first.contentRange;
+    let previousStart = -1;
+    for (let page = 0; page < VAKANTIES_MAX_PAGES - 1; page += 1) {
+      const range = parseContentRange(contentRange);
+      if (!range || range.total === 0) {
+        break;
+      }
+      const nextStart = range.end + 1;
+      if (nextStart <= previousStart) {
+        break;
+      }
+      if (range.total !== undefined && nextStart >= range.total) {
+        break;
+      }
+      const pageSize = Math.min(
+        range.total !== undefined ? range.total - nextStart : 100,
+        100,
+      );
+      previousStart = nextStart;
+      let next;
+      try {
+        next = await client.get<unknown>(source.path, undefined, {
+          accept: source.accept,
+          range: { start: nextStart, end: nextStart + pageSize - 1 },
+        });
+      } catch (error) {
+        // Soft-fail like the first GET: keep any items already collected.
+        if (error instanceof ApiNotAvailableError) {
+          if (items.length === 0) {
+            return {
+              items: [],
+              unavailable: error.status,
+              httpStatus: error.status,
+            };
+          }
+          return { items, httpStatus: first.status };
+        }
+        throw error;
+      }
+      const pageItems = listItems<RawHoliday>(next.body);
+      items = items.concat(pageItems);
+      // Follow-up page with no items: do not keep requesting the same gap.
+      // (The empty *first* GET is intentional — parent probe quirk.)
+      if (pageItems.length === 0) {
+        break;
+      }
+      contentRange = next.contentRange;
+    }
+    return { items, httpStatus: first.status };
   } catch (error) {
     if (error instanceof ApiNotAvailableError) {
-      return { items: [], unavailable: error.status };
+      return { items: [], unavailable: error.status, httpStatus: error.status };
     }
     throw error;
   }
@@ -180,11 +288,12 @@ async function getHolidayPage(
 /**
  * Published holidays for one child. Tries sources in order and keeps the first
  * non-empty list:
- * 1. `/vakanties/leerling/{id}` platinum, no Range (official leerling app /
- *    Cyfers docs / elisaado)
- * 2. same path with `Accept: application/json` (school-buddy, ha-somtoday,
- *    digital-IMEI)
- * 3. `/vakanties/verzorger` (parent portal OpenAPI; often empty)
+ * 1. `/vakanties/leerling/{id}` platinum, unpaginated (NONtoday VakantieState /
+ *    Cyfers / elisaado) — id is the child entity id, not the parent
+ * 2. same path with `Accept: application/json`
+ * 3. alternate ids for *this* child only (self-link; sole `/leerlingen` list
+ *    entry) — never a sibling
+ * 4. `/vakanties/verzorger` (parent portal OpenAPI; often empty)
  *
  * Soft-fails 403/404 so schedule/lessons still return the timetable.
  * `unavailable:<status>` is reported only when every source failed that way;
@@ -194,49 +303,81 @@ export async function lookupHolidays(
   client: ApiClient,
   leerlingId: number,
 ): Promise<HolidayLookup> {
-  const leerlingPath = `/vakanties/leerling/${leerlingId}`;
-  const sources: HolidaySource[] = [
+  const ids = await resolveVakantieLeerlingIds(client, leerlingId);
+  const attempts: VakantiesAttempt[] = [];
+  const sourcesFor = (id: number): HolidaySource[] => [
     {
       endpoint: VAKANTIES_LEERLING_ENDPOINT,
-      path: leerlingPath,
+      path: `/vakanties/leerling/${id}`,
     },
     {
       endpoint: `${VAKANTIES_LEERLING_ENDPOINT}?accept=json`,
-      path: leerlingPath,
+      path: `/vakanties/leerling/${id}`,
       accept: "json",
-    },
-    {
-      endpoint: VAKANTIES_VERZORGER_ENDPOINT,
-      path: VAKANTIES_VERZORGER_ENDPOINT,
     },
   ];
 
   let lastUnavailable: number | undefined;
-  let lastEndpoint = sources[0]!.endpoint;
-  /** True once any source answered HTTP 200 (even with items:[]). */
+  let lastEndpoint = VAKANTIES_LEERLING_ENDPOINT;
+  /** True once any source answered HTTP 200/206 (even with items:[]). */
   let sawSuccess = false;
 
-  for (const source of sources) {
-    const page = await getHolidayPage(client, source);
-    if (page.unavailable !== undefined) {
-      // Only keep unavailable status while every source so far has failed;
-      // a later 403 must not overwrite an earlier successful empty.
-      if (!sawSuccess) {
-        lastUnavailable = page.unavailable;
-        lastEndpoint = source.endpoint;
+  for (const id of ids) {
+    for (const source of sourcesFor(id)) {
+      const page = await getHolidayUnpaginated(client, source);
+      attempts.push({
+        endpoint: source.endpoint,
+        httpStatus: page.httpStatus,
+        itemCount: page.items.length,
+      });
+      if (page.unavailable !== undefined) {
+        if (!sawSuccess) {
+          lastUnavailable = page.unavailable;
+          lastEndpoint = source.endpoint;
+        }
+        continue;
       }
-      continue;
+      sawSuccess = true;
+      if (page.items.length > 0) {
+        return {
+          items: page.items,
+          vakantiesStatus: "ok",
+          vakantiesEndpoint: source.endpoint,
+          vakantiesAttempts: attempts,
+        };
+      }
+      lastUnavailable = undefined;
+      lastEndpoint = source.endpoint;
     }
+  }
+
+  const verzorger: HolidaySource = {
+    endpoint: VAKANTIES_VERZORGER_ENDPOINT,
+    path: VAKANTIES_VERZORGER_ENDPOINT,
+  };
+  const verzorgerPage = await getHolidayUnpaginated(client, verzorger);
+  attempts.push({
+    endpoint: verzorger.endpoint,
+    httpStatus: verzorgerPage.httpStatus,
+    itemCount: verzorgerPage.items.length,
+  });
+  if (verzorgerPage.unavailable !== undefined) {
+    if (!sawSuccess) {
+      lastUnavailable = verzorgerPage.unavailable;
+      lastEndpoint = verzorger.endpoint;
+    }
+  } else {
     sawSuccess = true;
-    if (page.items.length > 0) {
+    if (verzorgerPage.items.length > 0) {
       return {
-        items: page.items,
+        items: verzorgerPage.items,
         vakantiesStatus: "ok",
-        vakantiesEndpoint: source.endpoint,
+        vakantiesEndpoint: verzorger.endpoint,
+        vakantiesAttempts: attempts,
       };
     }
     lastUnavailable = undefined;
-    lastEndpoint = source.endpoint;
+    lastEndpoint = verzorger.endpoint;
   }
 
   if (!sawSuccess && lastUnavailable !== undefined) {
@@ -244,12 +385,14 @@ export async function lookupHolidays(
       items: [],
       vakantiesStatus: `unavailable:${lastUnavailable}`,
       vakantiesEndpoint: lastEndpoint,
+      vakantiesAttempts: attempts,
     };
   }
   return {
     items: [],
     vakantiesStatus: "empty",
     vakantiesEndpoint: lastEndpoint,
+    vakantiesAttempts: attempts,
   };
 }
 
@@ -280,12 +423,14 @@ export async function fetchHolidays(
   vakanties: Array<{ naam?: string; van?: string; tot?: string }>;
   vakantiesStatus: VakantiesStatus;
   vakantiesEndpoint: string;
+  vakantiesAttempts: VakantiesAttempt[];
 }> {
   const lookup = await lookupHolidays(client, leerlingId);
   return {
     vakanties: mapHolidayViews(lookup.items),
     vakantiesStatus: lookup.vakantiesStatus,
     vakantiesEndpoint: lookup.vakantiesEndpoint,
+    vakantiesAttempts: lookup.vakantiesAttempts,
   };
 }
 
@@ -316,6 +461,7 @@ export async function fetchSchedule(
   vakanties: Array<{ naam?: string; van?: string; tot?: string }>;
   vakantiesStatus: VakantiesStatus;
   vakantiesEndpoint: string;
+  vakantiesAttempts: VakantiesAttempt[];
   days: Array<{ datum: string; vakantie?: string; items: ScheduleItemView[] }>;
 }> {
   const notes: RawStatus[] = [];
@@ -360,6 +506,7 @@ export async function fetchSchedule(
     vakanties,
     vakantiesStatus: lookup.vakantiesStatus,
     vakantiesEndpoint: lookup.vakantiesEndpoint,
+    vakantiesAttempts: lookup.vakantiesAttempts,
     // Every day keeps `items` (also when empty), like homework.
     days: eachDay(from, to).map((datum) => ({
       ...compact({

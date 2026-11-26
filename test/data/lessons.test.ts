@@ -119,6 +119,21 @@ describe("holiday detection", () => {
     expect(out.lessons).toEqual([]);
     expect(out.vakantiesStatus).toBe("unavailable:403");
     expect(out.vakantiesEndpoint).toBe("/vakanties/verzorger");
+    expect(
+      (out as { vakantiesAttempts?: unknown[] }).vakantiesAttempts,
+    ).toEqual([
+      {
+        endpoint: "/vakanties/leerling/{leerlingId}",
+        httpStatus: 403,
+        itemCount: 0,
+      },
+      {
+        endpoint: "/vakanties/leerling/{leerlingId}?accept=json",
+        httpStatus: 403,
+        itemCount: 0,
+      },
+      { endpoint: "/vakanties/verzorger", httpStatus: 403, itemCount: 0 },
+    ]);
   });
 
   it("exposes vakantiesStatus ok and omits Range on the holidays GET", async () => {
@@ -132,10 +147,22 @@ describe("holiday detection", () => {
       holiday: boolean;
       vakantiesStatus: string;
       vakantiesEndpoint: string;
+      vakantiesAttempts: Array<{
+        endpoint: string;
+        httpStatus: number;
+        itemCount: number;
+      }>;
     };
     expect(out.holiday).toBe(true);
     expect(out.vakantiesStatus).toBe("ok");
     expect(out.vakantiesEndpoint).toBe("/vakanties/leerling/{leerlingId}");
+    expect(out.vakantiesAttempts).toEqual([
+      {
+        endpoint: "/vakanties/leerling/{leerlingId}",
+        httpStatus: 206,
+        itemCount: 1,
+      },
+    ]);
     const holidayCalls = calls.filter((call) =>
       call.url.pathname.includes("/vakanties/"),
     );

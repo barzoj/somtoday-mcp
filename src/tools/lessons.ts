@@ -40,6 +40,7 @@ export async function lessonsTool(
       holidays: onHoliday.map((item) => item.naam).filter(Boolean),
       vakantiesStatus: holidayLookup.vakantiesStatus,
       vakantiesEndpoint: holidayLookup.vakantiesEndpoint,
+      vakantiesAttempts: holidayLookup.vakantiesAttempts,
       lessons: filterLessonsForDate(weekItems, date),
     });
   });

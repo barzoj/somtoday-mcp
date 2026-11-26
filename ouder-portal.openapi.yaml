@@ -479,11 +479,16 @@ paths:
       description: |
         Used by schedule, lessons (holiday flag), and Schoolinformatie pagina=-1.
         Items carry `naam`, `beginDatum`, `eindDatum` (local midnight with offset).
-        The official leerling app fetches this without a Range header on the first
-        request (NONtoday/leerling-source); paging Range is only added for later
-        pages. Prefer a plain GET — `Range: items=0-99` has been observed to yield
-        an empty page for some parent accounts. Fallbacks: same path with
-        Accept application/json, then `/vakanties/verzorger`.
+        `{leerlingId}` is the child's numeric entity id (JWT `leerlingen.ll[].id`,
+        `restricties.leerlingId`, or `GET /leerlingen` self-link) — not the parent
+        account/persoon UUID. No `additional` / schooljaar query (NONtoday
+        VakantieState). The official app fetches without a Range header on the
+        first request; paging Range is only added for later pages from
+        Content-Range. Prefer that unpaginated flow — `Range: items=0-99` on the
+        first request has been observed to yield an empty page for some parent
+        accounts. Fallbacks: same path with Accept application/json, this
+        child's self-link (or the sole `/leerlingen` list id) when it differs,
+        then `/vakanties/verzorger`. Never a sibling's id.
       parameters:
         - $ref: '#/components/parameters/leerlingId'
       responses:
