@@ -137,9 +137,9 @@ export type VakantiesStatus = "ok" | "empty" | `unavailable:${number}`;
 
 export type HolidayLookup = {
   items: RawHoliday[];
-  /** `"ok"` when at least one holiday was returned; `"empty"` for HTTP 200 with
-   * no items after all sources; `"unavailable:<status>"` when every source
-   * answered 403/404. */
+  /** `"ok"` when at least one holiday was returned; `"empty"` when any source
+   * answered HTTP 200 with no items (and none returned items); `"unavailable:<status>"`
+   * only when every source answered 403/404. */
   vakantiesStatus: VakantiesStatus;
   /** Which path template produced the result (no personal ids). */
   vakantiesEndpoint: string;
@@ -187,6 +187,8 @@ async function getHolidayPage(
  * 3. `/vakanties/verzorger` (parent portal OpenAPI; often empty)
  *
  * Soft-fails 403/404 so schedule/lessons still return the timetable.
+ * `unavailable:<status>` is reported only when every source failed that way;
+ * a successful empty response wins over a later 403/404.
  */
 export async function lookupHolidays(
   client: ApiClient,
@@ -210,15 +212,22 @@ export async function lookupHolidays(
   ];
 
   let lastUnavailable: number | undefined;
-  let lastEmptyEndpoint = sources[0]!.endpoint;
+  let lastEndpoint = sources[0]!.endpoint;
+  /** True once any source answered HTTP 200 (even with items:[]). */
+  let sawSuccess = false;
 
   for (const source of sources) {
     const page = await getHolidayPage(client, source);
     if (page.unavailable !== undefined) {
-      lastUnavailable = page.unavailable;
-      lastEmptyEndpoint = source.endpoint;
+      // Only keep unavailable status while every source so far has failed;
+      // a later 403 must not overwrite an earlier successful empty.
+      if (!sawSuccess) {
+        lastUnavailable = page.unavailable;
+        lastEndpoint = source.endpoint;
+      }
       continue;
     }
+    sawSuccess = true;
     if (page.items.length > 0) {
       return {
         items: page.items,
@@ -227,20 +236,20 @@ export async function lookupHolidays(
       };
     }
     lastUnavailable = undefined;
-    lastEmptyEndpoint = source.endpoint;
+    lastEndpoint = source.endpoint;
   }
 
-  if (lastUnavailable !== undefined) {
+  if (!sawSuccess && lastUnavailable !== undefined) {
     return {
       items: [],
       vakantiesStatus: `unavailable:${lastUnavailable}`,
-      vakantiesEndpoint: lastEmptyEndpoint,
+      vakantiesEndpoint: lastEndpoint,
     };
   }
   return {
     items: [],
     vakantiesStatus: "empty",
-    vakantiesEndpoint: lastEmptyEndpoint,
+    vakantiesEndpoint: lastEndpoint,
   };
 }
 

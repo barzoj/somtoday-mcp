@@ -390,6 +390,31 @@ describe("school_info built-in pages", () => {
     expect(out.pagina.vakantiesEndpoint).toBe("/vakanties/verzorger");
   });
 
+  it("keeps vakantiesStatus empty when leerling is empty and verzorger is 403", async () => {
+    // A later unavailable must not override a successful empty primary response.
+    const { fetchFn } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [/\/vakanties\/leerling\/4242/, () => listResponse([])],
+      [
+        /\/vakanties\/verzorger/,
+        () => jsonResponse(403, { message: "forbidden" }),
+      ],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await schoolInfoTool(ctx, { paginaId: -1 })) as {
+      pagina: {
+        vakanties: unknown[];
+        vakantiesStatus: string;
+        vakantiesEndpoint: string;
+      };
+    };
+    expect(out.pagina.vakanties).toEqual([]);
+    expect(out.pagina.vakantiesStatus).toBe("empty");
+    expect(out.pagina.vakantiesEndpoint).toBe(
+      "/vakanties/leerling/{leerlingId}?accept=json",
+    );
+  });
+
   it("rejects holidays page -1 without a leerlingId at the API layer", async () => {
     const { fetchFn } = routedFetch([]);
     const session = await sessionWithStore(fetchFn);
