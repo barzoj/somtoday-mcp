@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0](https://github.com/barzoj/somtoday-mcp/compare/v0.4.0...v0.5.0) (2026-11-26)
+
+
+### Features
+
+* expose herkansing attempts via grades and retakes tool ([#91](https://github.com/barzoj/somtoday-mcp/issues/91)) ([a7bfeaf](https://github.com/barzoj/somtoday-mcp/commit/a7bfeafb54d5272ee6bc008ac1fd91548b0505d2))
+
+
+### Bug Fixes
+
+* **assignments:** do not flag non-digital hand-ins as teLaat ([#87](https://github.com/barzoj/somtoday-mcp/issues/87)) ([56e2591](https://github.com/barzoj/somtoday-mcp/commit/56e2591c6bc5b8b9e7e0e315c62f38f1b8bf6d3f))
+* expose bijlage download fields and drop attachment text extraction ([#90](https://github.com/barzoj/somtoday-mcp/issues/90)) ([9d0b27e](https://github.com/barzoj/somtoday-mcp/commit/9d0b27e6133b9e533d810f4543b30ca1a60f13b4))
+* **homework:** honour date ranges longer than 42 days ([#88](https://github.com/barzoj/somtoday-mcp/issues/88)) ([2fb849e](https://github.com/barzoj/somtoday-mcp/commit/2fb849eb8b3618e50e9cf60cf6fffc9f1ea60412))
+* **schedule:** honour date ranges longer than 42 days ([#95](https://github.com/barzoj/somtoday-mcp/issues/95)) ([cecefc4](https://github.com/barzoj/somtoday-mcp/commit/cecefc4fe77d0d9afd8f6b24ea231bd5e732593f))
+* **school_info:** open listed built-in pages -1 and -2 ([#89](https://github.com/barzoj/somtoday-mcp/issues/89)) ([424f081](https://github.com/barzoj/somtoday-mcp/commit/424f081e2db974c6cad2832185bbb25fa3a70968))
+* **vakanties:** fetch holidays per leerling so Christmas is detected ([#96](https://github.com/barzoj/somtoday-mcp/issues/96)) ([b945e63](https://github.com/barzoj/somtoday-mcp/commit/b945e633e44819b61f01fac062365ab3fd4b98ec))
+* **vakanties:** fetch holidays without Range; diagnose empty vs unavailable ([#97](https://github.com/barzoj/somtoday-mcp/issues/97)) ([#98](https://github.com/barzoj/somtoday-mcp/issues/98)) ([fe2dc07](https://github.com/barzoj/somtoday-mcp/commit/fe2dc074bcf8f6a58ee96611692dc70ec0c844e7))
+* **vakanties:** resolve child entity id and follow Content-Range pages ([#99](https://github.com/barzoj/somtoday-mcp/issues/99)) ([#100](https://github.com/barzoj/somtoday-mcp/issues/100)) ([19f997e](https://github.com/barzoj/somtoday-mcp/commit/19f997e93a4d011982e069ae607bda087a285190))
+
 ## [0.4.0](https://github.com/barzoj/somtoday-mcp/compare/v0.3.4...v0.4.0) (2026-11-25)
 
 
