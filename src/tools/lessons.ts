@@ -28,16 +28,18 @@ export async function lessonsTool(
         date,
       });
     }
-    const [weekItems, holidays] = await Promise.all([
+    const [weekItems, holidayLookup] = await Promise.all([
       fetchWeekLessons(ctx.client, child.leerlingId, date),
       fetchHolidays(ctx.client, child.leerlingId),
     ]);
-    const onHoliday = holidaysOnDate(holidays, date);
+    const onHoliday = holidaysOnDate(holidayLookup.items, date);
     return jsonResult({
       leerlingId: child.leerlingId,
       date,
       holiday: onHoliday.length > 0,
       holidays: onHoliday.map((item) => item.naam).filter(Boolean),
+      vakantiesStatus: holidayLookup.vakantiesStatus,
+      vakantiesEndpoint: holidayLookup.vakantiesEndpoint,
       lessons: filterLessonsForDate(weekItems, date),
     });
   });

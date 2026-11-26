@@ -479,6 +479,11 @@ paths:
       description: |
         Used by schedule, lessons (holiday flag), and Schoolinformatie pagina=-1.
         Items carry `naam`, `beginDatum`, `eindDatum` (local midnight with offset).
+        The official leerling app fetches this without a Range header on the first
+        request (NONtoday/leerling-source); paging Range is only added for later
+        pages. Prefer a plain GET — `Range: items=0-99` has been observed to yield
+        an empty page for some parent accounts. Fallbacks: same path with
+        Accept application/json, then `/vakanties/verzorger`.
       parameters:
         - $ref: '#/components/parameters/leerlingId'
       responses:
@@ -486,6 +491,9 @@ paths:
           description: Holiday list
           content:
             application/vnd.topicus.platinum+json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+            application/json:
               schema:
                 $ref: '#/components/schemas/ItemList'
 

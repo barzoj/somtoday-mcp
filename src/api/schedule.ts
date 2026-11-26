@@ -1,7 +1,7 @@
 import { amsterdamYmd, dayOf, eachDay, isoWeeksInRange } from "../dates.js";
 import { htmlToPlain } from "../html.js";
 import { mapInBatches, WEEKS_PER_BATCH } from "./batch.js";
-import { ApiNotAvailableError, type ApiClient } from "./client.js";
+import { ApiNotAvailableError, listItems, type ApiClient } from "./client.js";
 import { linkId, simplify } from "./simplify.js";
 import {
   compact,
@@ -129,42 +129,164 @@ function holidayBounds(holiday: RawHoliday): [string?, string?] {
   ];
 }
 
+/** Path templates only — never embed a real leerling id (privacy). */
+export const VAKANTIES_LEERLING_ENDPOINT = "/vakanties/leerling/{leerlingId}";
+export const VAKANTIES_VERZORGER_ENDPOINT = "/vakanties/verzorger";
+
+export type VakantiesStatus = "ok" | "empty" | `unavailable:${number}`;
+
+export type HolidayLookup = {
+  items: RawHoliday[];
+  /** `"ok"` when at least one holiday was returned; `"empty"` when any source
+   * answered HTTP 200 with no items (and none returned items); `"unavailable:<status>"`
+   * only when every source answered 403/404. */
+  vakantiesStatus: VakantiesStatus;
+  /** Which path template produced the result (no personal ids). */
+  vakantiesEndpoint: string;
+};
+
+type HolidaySource = {
+  endpoint: string;
+  path: string;
+  accept?: "platinum" | "json";
+};
+
 /**
- * Published holidays for one child.
- * `/vakanties/verzorger` exists but often returns an empty list for parents;
- * the portal and other clients use `/vakanties/leerling/{id}` instead.
- * A 403/404 (section off / nothing published) yields `[]` so schedule and
- * lessons still return the timetable with `holiday: false` / empty vakanties.
+ * One holiday GET without a Range header.
+ *
+ * The official leerling app (NONtoday/leerling-source AbstractState) loads
+ * `vakanties/leerling/{id}` with a plain first request — Range only appears on
+ * later pages. Our generic `getAll` always sends `Range: items=0-99`, which for
+ * this endpoint can yield an empty page on parent accounts. Holiday lists are
+ * small enough that one unpaged GET matches the app.
  */
-export async function fetchHolidayItems(
+async function getHolidayPage(
   client: ApiClient,
-  leerlingId: number,
-): Promise<RawHoliday[]> {
+  source: HolidaySource,
+): Promise<{ items: RawHoliday[]; unavailable?: number }> {
   try {
-    const { items } = await client.getAll<RawHoliday>(
-      `/vakanties/leerling/${leerlingId}`,
-    );
-    return items;
+    const { body } = await client.get<unknown>(source.path, undefined, {
+      accept: source.accept,
+    });
+    return { items: listItems<RawHoliday>(body) };
   } catch (error) {
     if (error instanceof ApiNotAvailableError) {
-      return [];
+      return { items: [], unavailable: error.status };
     }
     throw error;
   }
 }
 
-/** Every holiday and day off published for this child (school Vakanties page). */
-export async function fetchHolidays(
+/**
+ * Published holidays for one child. Tries sources in order and keeps the first
+ * non-empty list:
+ * 1. `/vakanties/leerling/{id}` platinum, no Range (official leerling app /
+ *    Cyfers docs / elisaado)
+ * 2. same path with `Accept: application/json` (school-buddy, ha-somtoday,
+ *    digital-IMEI)
+ * 3. `/vakanties/verzorger` (parent portal OpenAPI; often empty)
+ *
+ * Soft-fails 403/404 so schedule/lessons still return the timetable.
+ * `unavailable:<status>` is reported only when every source failed that way;
+ * a successful empty response wins over a later 403/404.
+ */
+export async function lookupHolidays(
   client: ApiClient,
   leerlingId: number,
-): Promise<Array<{ naam?: string; van?: string; tot?: string }>> {
-  const items = await fetchHolidayItems(client, leerlingId);
+): Promise<HolidayLookup> {
+  const leerlingPath = `/vakanties/leerling/${leerlingId}`;
+  const sources: HolidaySource[] = [
+    {
+      endpoint: VAKANTIES_LEERLING_ENDPOINT,
+      path: leerlingPath,
+    },
+    {
+      endpoint: `${VAKANTIES_LEERLING_ENDPOINT}?accept=json`,
+      path: leerlingPath,
+      accept: "json",
+    },
+    {
+      endpoint: VAKANTIES_VERZORGER_ENDPOINT,
+      path: VAKANTIES_VERZORGER_ENDPOINT,
+    },
+  ];
+
+  let lastUnavailable: number | undefined;
+  let lastEndpoint = sources[0]!.endpoint;
+  /** True once any source answered HTTP 200 (even with items:[]). */
+  let sawSuccess = false;
+
+  for (const source of sources) {
+    const page = await getHolidayPage(client, source);
+    if (page.unavailable !== undefined) {
+      // Only keep unavailable status while every source so far has failed;
+      // a later 403 must not overwrite an earlier successful empty.
+      if (!sawSuccess) {
+        lastUnavailable = page.unavailable;
+        lastEndpoint = source.endpoint;
+      }
+      continue;
+    }
+    sawSuccess = true;
+    if (page.items.length > 0) {
+      return {
+        items: page.items,
+        vakantiesStatus: "ok",
+        vakantiesEndpoint: source.endpoint,
+      };
+    }
+    lastUnavailable = undefined;
+    lastEndpoint = source.endpoint;
+  }
+
+  if (!sawSuccess && lastUnavailable !== undefined) {
+    return {
+      items: [],
+      vakantiesStatus: `unavailable:${lastUnavailable}`,
+      vakantiesEndpoint: lastEndpoint,
+    };
+  }
+  return {
+    items: [],
+    vakantiesStatus: "empty",
+    vakantiesEndpoint: lastEndpoint,
+  };
+}
+
+/** @deprecated Prefer {@link lookupHolidays}; kept for call sites that only need items. */
+export async function fetchHolidayItems(
+  client: ApiClient,
+  leerlingId: number,
+): Promise<RawHoliday[]> {
+  return (await lookupHolidays(client, leerlingId)).items;
+}
+
+function mapHolidayViews(
+  items: RawHoliday[],
+): Array<{ naam?: string; van?: string; tot?: string }> {
   return items
     .map((holiday) => {
       const [van, tot] = holidayBounds(holiday);
       return compact({ naam: holiday.naam, van, tot });
     })
     .sort((a, b) => (a.van ?? "").localeCompare(b.van ?? ""));
+}
+
+/** Every holiday and day off published for this child (school Vakanties page). */
+export async function fetchHolidays(
+  client: ApiClient,
+  leerlingId: number,
+): Promise<{
+  vakanties: Array<{ naam?: string; van?: string; tot?: string }>;
+  vakantiesStatus: VakantiesStatus;
+  vakantiesEndpoint: string;
+}> {
+  const lookup = await lookupHolidays(client, leerlingId);
+  return {
+    vakanties: mapHolidayViews(lookup.items),
+    vakantiesStatus: lookup.vakantiesStatus,
+    vakantiesEndpoint: lookup.vakantiesEndpoint,
+  };
 }
 
 /**
@@ -192,6 +314,8 @@ export async function fetchSchedule(
   to: string;
   meldingen: RawStatus[];
   vakanties: Array<{ naam?: string; van?: string; tot?: string }>;
+  vakantiesStatus: VakantiesStatus;
+  vakantiesEndpoint: string;
   days: Array<{ datum: string; vakantie?: string; items: ScheduleItemView[] }>;
 }> {
   const notes: RawStatus[] = [];
@@ -213,7 +337,7 @@ export async function fetchSchedule(
       ),
   );
   const meldingen = realMeldingen(notes);
-  const holidays = await fetchHolidayItems(client, leerlingId);
+  const lookup = await lookupHolidays(client, leerlingId);
   const seen = new Set<string>();
   const items = weeks
     .flatMap((week) => week.items)
@@ -225,20 +349,17 @@ export async function fetchSchedule(
       return true;
     })
     .sort((a, b) => (a.begin ?? "").localeCompare(b.begin ?? ""));
-  const vakanties = holidays
-    .map((holiday) => {
-      const [van, tot] = holidayBounds(holiday);
-      return compact({ naam: holiday.naam, van, tot });
-    })
-    .filter(
-      (holiday) =>
-        holiday.van && holiday.tot && holiday.van <= to && holiday.tot >= from,
-    );
+  const vakanties = mapHolidayViews(lookup.items).filter(
+    (holiday) =>
+      holiday.van && holiday.tot && holiday.van <= to && holiday.tot >= from,
+  );
   return {
     from,
     to,
     meldingen,
     vakanties,
+    vakantiesStatus: lookup.vakantiesStatus,
+    vakantiesEndpoint: lookup.vakantiesEndpoint,
     // Every day keeps `items` (also when empty), like homework.
     days: eachDay(from, to).map((datum) => ({
       ...compact({

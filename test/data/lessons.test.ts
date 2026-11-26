@@ -101,16 +101,46 @@ describe("holiday detection", () => {
         /\/vakanties\/leerling\/4242/,
         () => jsonResponse(403, { message: "forbidden" }),
       ],
+      [
+        /\/vakanties\/verzorger/,
+        () => jsonResponse(403, { message: "forbidden" }),
+      ],
     ]);
     const ctx = await toolContext(fetchFn);
     const out = toolJson(await lessonsTool(ctx, { date: "2026-12-28" })) as {
       holiday: boolean;
       holidays: string[];
       lessons: unknown[];
+      vakantiesStatus: string;
+      vakantiesEndpoint: string;
     };
     expect(out.holiday).toBe(false);
     expect(out.holidays).toEqual([]);
     expect(out.lessons).toEqual([]);
+    expect(out.vakantiesStatus).toBe("unavailable:403");
+    expect(out.vakantiesEndpoint).toBe("/vakanties/verzorger");
+  });
+
+  it("exposes vakantiesStatus ok and omits Range on the holidays GET", async () => {
+    const { fetchFn, calls } = routedFetch([
+      [/\/account\/me/, () => accountMe(4242)],
+      [/\/afspraakitems\/4242\/jaar\/2026\/week\/53/, () => listResponse([])],
+      [/\/vakanties\/leerling\/4242/, () => listResponse([kerstvakantie2026])],
+    ]);
+    const ctx = await toolContext(fetchFn);
+    const out = toolJson(await lessonsTool(ctx, { date: "2026-12-28" })) as {
+      holiday: boolean;
+      vakantiesStatus: string;
+      vakantiesEndpoint: string;
+    };
+    expect(out.holiday).toBe(true);
+    expect(out.vakantiesStatus).toBe("ok");
+    expect(out.vakantiesEndpoint).toBe("/vakanties/leerling/{leerlingId}");
+    const holidayCalls = calls.filter((call) =>
+      call.url.pathname.includes("/vakanties/"),
+    );
+    expect(holidayCalls).toHaveLength(1);
+    expect(holidayCalls[0]!.headers.get("range")).toBeNull();
   });
 
   it("uses the requested child's holidays when several children are linked", async () => {
